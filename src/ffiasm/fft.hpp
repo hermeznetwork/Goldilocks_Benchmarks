@@ -16,12 +16,14 @@ class FFT {
     void reversePermutation(Element *a, u_int64_t n);
     void fftInnerLoop(Element *a, u_int64_t from, u_int64_t to, u_int32_t s);
     void finalInverseInner(Element *a, u_int64_t from, u_int64_t to, u_int32_t domainPow);
+    void shuffle(Element *a, u_int64_t n, u_int64_t s);
 
 public:
 
     FFT(u_int64_t maxDomainSize, u_int32_t _nThreads = 0);
     ~FFT();
     void fft(Element *a, u_int64_t n );
+    void fft2(Element *a, u_int64_t n );
     void ifft(Element *a, u_int64_t n );
 
     u_int32_t log2(u_int64_t n);

@@ -26,8 +26,6 @@ static inline u_int64_t BR(u_int64_t x, u_int64_t domainPow)
     return (((x & 0xAAAAAAAA) >> 1) | ((x & 0x55555555) << 1)) >> (32-domainPow);
 }
 
-#define ROOT(s,j) (rootsOfUnit[(1<<(s))+(j)])
-
 template <typename Field>
 FFT<Field>::FFT(u_int64_t maxDomainSize, uint32_t _nThreads) {
     nThreads = _nThreads==0 ? omp_get_max_threads() : _nThreads;
@@ -120,48 +118,16 @@ FFT<Field>::~FFT() {
     delete[] powTwoInv;
 }
 
-/*
-template <typename Field>
-void FFT<Field>::reversePermutationInnerLoop(Element *a, u_int64_t from, u_int64_t to, u_int32_t domainPow) {
-    Element tmp;
-    for (u_int64_t i=from; i<to; i++) {
-        u_int64_t r = BR(i, domainPow);
-        if (i>r) {
-            f.copy(tmp, a[i]);
-            f.copy(a[i], a[r]);
-            f.copy(a[r], tmp);
-        }
-    }
-}
-
+#define PF 5
 
 template <typename Field>
 void FFT<Field>::reversePermutation(Element *a, u_int64_t n) {
-    int domainPow = log2(n);
-    std::vector<std::thread> threads(nThreads-1);
-    u_int64_t increment = n / nThreads;
-    if (increment) {
-        for (u_int64_t i=0; i<nThreads-1; i++) {
-            threads[i] = std::thread (&FFT<Field>::reversePermutationInnerLoop, this, a, i*increment, (i+1)*increment, domainPow);
-        }
-    }
-    reversePermutationInnerLoop(a, (nThreads-1)*increment, n, domainPow);
-    if (increment) {
-        for (u_int32_t i=0; i<nThreads-1; i++) {
-            if (threads[i].joinable()) threads[i].join();
-        }
-    }
-}
-*/
-
-
-template <typename Field>
-void FFT<Field>::reversePermutation(Element *a, u_int64_t n) {
-    int domainPow = log2(n);
+    uint32_t domainSize = log2(n);
     #pragma omp parallel for
     for (u_int64_t i=0; i<n; i++) {
+        u_int64_t r;
         Element tmp;
-        u_int64_t r = BR(i, domainPow);
+        r = BR(i, domainSize);
         if (i>r) {
             f.copy(tmp, a[i]);
             f.copy(a[i], a[r]);
@@ -172,7 +138,7 @@ void FFT<Field>::reversePermutation(Element *a, u_int64_t n) {
 
 
 template <typename Field>
-void FFT<Field>::fft(Element *a, u_int64_t n) {
+void FFT<Field>::fft2(Element *a, u_int64_t n) {
     reversePermutation(a, n);
     u_int64_t domainPow =log2(n);
     assert(((u_int64_t)1 << domainPow) == n);
@@ -192,6 +158,97 @@ void FFT<Field>::fft(Element *a, u_int64_t n) {
             f.sub(a[k+j+mdiv2], u, t);
         }
     }
+}
+
+
+template <typename Field>
+void FFT<Field>::fft(Element *a, u_int64_t n) {
+    reversePermutation(a, n);
+    u_int64_t domainPow =log2(n);
+    assert(((u_int64_t)1 << domainPow) == n);
+    u_int64_t maxBatchPow = (s+1)/2;
+    // u_int64_t maxBatchPow = s;
+    u_int64_t batchSize = 1 << maxBatchPow;
+    u_int64_t nBatches = n / batchSize;
+
+    for (u_int64_t s=1; s<=domainPow; s+=maxBatchPow) {
+        u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s +1;
+
+        #pragma omp parallel for
+        for (u_int64_t b=0; b<nBatches; b++) {
+            u_int64_t rs = s-1;
+            uint64_t re = domainPow -1;
+            uint64_t rb =  1<<rs; 
+            uint64_t rm = (1 << (re-rs)) -1;
+
+            for (u_int64_t si=0; si<sInc; si++) {
+                u_int64_t m = 1 << (s+si);
+                u_int64_t mdiv2 = m >> 1;
+                u_int64_t mdiv2i = 1 << si;
+                u_int64_t mi = mdiv2i * 2;
+                for (u_int64_t i=0; i< (batchSize>>1); i++) {
+                    Element t;
+                    Element u;
+
+
+                    u_int64_t ki= b*batchSize + (i/mdiv2i)*mi;
+                    u_int64_t ji=i%mdiv2i;
+
+                    u_int64_t j=(b*batchSize/2 + i);
+                    j = (j & rm)*rb + (j >> (re-rs));
+                    j = j%mdiv2;
+
+                    f.mul(t, root(s+si, j), a[ki+ji+mdiv2i]);
+                    f.copy(u,a[ki+ji]);
+                    f.add(a[ki+ji], t, u);
+                    f.sub(a[ki+ji+mdiv2i], u, t);
+                }
+            }
+        }
+
+        shuffle(a, n, sInc);
+    }
+}
+
+
+/*
+function shuffle(arr, s) {
+    const res = [];
+    
+    
+    const e= log2(arr.length);
+    const b= 1<<s;
+    const mask = (1 << (e-s)) -1;
+
+    for (let i=0; i<N; i++) {
+        res[i] = arr[(i & mask)*b + (i >> (e-s))];
+    }
+
+    return res;
+}
+*/
+
+template <typename Field>
+void FFT<Field>::shuffle(Element *a, uint64_t n, uint64_t s) {
+    uint64_t e = log2(n);
+    uint64_t b =  1<<s; 
+    uint64_t mask = (1 << (e-s)) -1;
+
+    Element *aux = new Element[n];
+
+    #pragma omp parallel for
+    for (u_int64_t i=0; i<n; i++) {
+        u_int64_t r;
+        r = (i & mask)*b + (i >> (e-s));
+        f.copy(aux[i], a[r]);
+    }
+
+    #pragma omp parallel for
+    for (u_int64_t i=0; i<n; i++) {
+        f.copy(a[i], aux[i]);
+    }
+
+    delete aux;
 }
 
 template <typename Field>

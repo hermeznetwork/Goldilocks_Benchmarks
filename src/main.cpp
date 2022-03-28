@@ -27,10 +27,18 @@ static void FFT_BENCHMARK(benchmark::State &state)
     for (auto _ : state)
     {
         fft.fft(pol, lenght);
-        //fft.ifft(pol, LENGTH);
+//        fft.ifft(pol, lenght);
     }
+
+/*
+    for (uint64_t i = 0; i < 10; i++) {
+        printf("%s ", field.toString(pol[i]).c_str());
+    }
+*/
+
     free(pol);
 }
 
-BENCHMARK(FFT_BENCHMARK)->DenseRange(23, 27, 1)->Unit(benchmark::kMillisecond)->Iterations(10);
+BENCHMARK(FFT_BENCHMARK)->DenseRange(23, 27, 1)->Unit(benchmark::kMillisecond)->Iterations(5);
 BENCHMARK_MAIN();
+
