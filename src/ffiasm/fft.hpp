@@ -13,10 +13,24 @@ class FFT {
     u_int32_t nThreads;
 
     void reversePermutationInnerLoop(Element *a, u_int64_t from, u_int64_t to, u_int32_t domainPow);
-    void reversePermutation(Element *a, u_int64_t n);
+    void reversePermutation(Element *dst,Element *a, u_int64_t n);
+    void reversePermutation_inplace(Element *a, u_int64_t n);
     void fftInnerLoop(Element *a, u_int64_t from, u_int64_t to, u_int32_t s);
     void finalInverseInner(Element *a, u_int64_t from, u_int64_t to, u_int32_t domainPow);
-    void shuffle(Element *a, u_int64_t n, u_int64_t s);
+    void shuffle_old(Element *dst, Element *a, u_int64_t n, u_int64_t s);
+    void shuffle(Element *dst, Element *src, u_int64_t n, u_int64_t s);
+    void traspose(
+        Element *dst, 
+        Element *src, 
+        uint64_t srcRowSize, 
+        uint64_t srcX, 
+        uint64_t srcWidth, 
+        uint64_t srcY, 
+        uint64_t srcHeight, 
+        uint64_t dstRowSize, 
+        uint64_t dstX, 
+        uint64_t dstY
+    ); 
 
 public:
 
