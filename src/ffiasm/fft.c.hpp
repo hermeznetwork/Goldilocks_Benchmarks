@@ -26,8 +26,6 @@ static inline u_int64_t BR(u_int64_t x, u_int64_t domainPow)
     return (((x & 0xAAAAAAAA) >> 1) | ((x & 0x55555555) << 1)) >> (32-domainPow);
 }
 
-#define ROOT(s,j) (rootsOfUnit[(1<<(s))+(j)])
-
 template <typename Field>
 FFT<Field>::FFT(u_int64_t maxDomainSize, uint32_t _nThreads) {
     nThreads = _nThreads==0 ? omp_get_max_threads() : _nThreads;
@@ -120,48 +118,16 @@ FFT<Field>::~FFT() {
     delete[] powTwoInv;
 }
 
-/*
-template <typename Field>
-void FFT<Field>::reversePermutationInnerLoop(Element *a, u_int64_t from, u_int64_t to, u_int32_t domainPow) {
-    Element tmp;
-    for (u_int64_t i=from; i<to; i++) {
-        u_int64_t r = BR(i, domainPow);
-        if (i>r) {
-            f.copy(tmp, a[i]);
-            f.copy(a[i], a[r]);
-            f.copy(a[r], tmp);
-        }
-    }
-}
-
+#define PF 5
 
 template <typename Field>
-void FFT<Field>::reversePermutation(Element *a, u_int64_t n) {
-    int domainPow = log2(n);
-    std::vector<std::thread> threads(nThreads-1);
-    u_int64_t increment = n / nThreads;
-    if (increment) {
-        for (u_int64_t i=0; i<nThreads-1; i++) {
-            threads[i] = std::thread (&FFT<Field>::reversePermutationInnerLoop, this, a, i*increment, (i+1)*increment, domainPow);
-        }
-    }
-    reversePermutationInnerLoop(a, (nThreads-1)*increment, n, domainPow);
-    if (increment) {
-        for (u_int32_t i=0; i<nThreads-1; i++) {
-            if (threads[i].joinable()) threads[i].join();
-        }
-    }
-}
-*/
-
-
-template <typename Field>
-void FFT<Field>::reversePermutation(Element *a, u_int64_t n) {
-    int domainPow = log2(n);
+void FFT<Field>::reversePermutation_inplace(Element *a, u_int64_t n) {
+    uint32_t domainSize = log2(n);
     #pragma omp parallel for
     for (u_int64_t i=0; i<n; i++) {
+        u_int64_t r;
         Element tmp;
-        u_int64_t r = BR(i, domainPow);
+        r = BR(i, domainSize);
         if (i>r) {
             f.copy(tmp, a[i]);
             f.copy(a[i], a[r]);
@@ -172,7 +138,18 @@ void FFT<Field>::reversePermutation(Element *a, u_int64_t n) {
 
 
 template <typename Field>
-void FFT<Field>::fft(Element *a, u_int64_t n) {
+void FFT<Field>::reversePermutation(Element *dst, Element *a, u_int64_t n) {
+    uint32_t domainSize = log2(n);
+    #pragma omp parallel for
+    for (u_int64_t i=0; i<n; i++) {
+        u_int64_t r;
+        r = BR(i, domainSize);
+        f.copy(dst[i], a[r]);
+    }
+}
+
+template <typename Field>
+void FFT<Field>::fft2(Element *a, u_int64_t n) {
     reversePermutation(a, n);
     u_int64_t domainPow =log2(n);
     assert(((u_int64_t)1 << domainPow) == n);
@@ -193,6 +170,144 @@ void FFT<Field>::fft(Element *a, u_int64_t n) {
         }
     }
 }
+
+
+template <typename Field>
+void FFT<Field>::fft(Element *_a, u_int64_t n) {
+    Element *aux_a = new Element[n];
+    Element *a = _a;
+    Element *a2 = aux_a;
+    Element *tmp;
+
+    reversePermutation(a2, a, n);
+    tmp = a2;
+    a2 = a;
+    a = tmp;
+
+    u_int64_t domainPow =log2(n);
+    assert(((u_int64_t)1 << domainPow) == n);
+    u_int64_t maxBatchPow = s/3 + 1;
+    // u_int64_t maxBatchPow = s;
+    u_int64_t batchSize = 1 << maxBatchPow;
+    u_int64_t nBatches = n / batchSize;
+
+    for (u_int64_t s=1; s<=domainPow; s+=maxBatchPow) {
+        u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s +1;
+
+        #pragma omp parallel for
+        for (u_int64_t b=0; b<nBatches; b++) {
+            u_int64_t rs = s-1;
+            uint64_t re = domainPow -1;
+            uint64_t rb =  1<<rs; 
+            uint64_t rm = (1 << (re-rs)) -1;
+
+            for (u_int64_t si=0; si<sInc; si++) {
+                u_int64_t m = 1 << (s+si);
+                u_int64_t mdiv2 = m >> 1;
+                u_int64_t mdiv2i = 1 << si;
+                u_int64_t mi = mdiv2i * 2;
+                for (u_int64_t i=0; i< (batchSize>>1); i++) {
+                    Element t;
+                    Element u;
+
+
+                    u_int64_t ki= b*batchSize + (i/mdiv2i)*mi;
+                    u_int64_t ji=i%mdiv2i;
+
+                    u_int64_t j=(b*batchSize/2 + i);
+                    j = (j & rm)*rb + (j >> (re-rs));
+                    j = j%mdiv2;
+
+                    f.mul(t, root(s+si, j), a[ki+ji+mdiv2i]);
+                    f.copy(u,a[ki+ji]);
+                    f.add(a[ki+ji], t, u);
+                    f.sub(a[ki+ji+mdiv2i], u, t);
+                }
+            }
+        }
+
+        shuffle(a2, a, n, sInc);
+        tmp = a2;
+        a2 = a;
+        a = tmp;
+    }
+
+    if (a!=_a) {
+        printf("baaaaad");
+        shuffle(a, a2, n, 0);
+    }
+    delete aux_a;
+}
+
+
+template <typename Field>
+void FFT<Field>::shuffle_old(Element *dst, Element *a, uint64_t n, uint64_t s) {
+    uint64_t e = log2(n);
+    uint64_t b =  1<<s; 
+    uint64_t mask = (1 << (e-s)) -1;
+
+    #pragma omp parallel for
+    for (u_int64_t i=0; i<n; i++) {
+        u_int64_t r;
+        r = (i & mask)*b + (i >> (e-s));
+        f.copy(dst[i], a[r]);
+    }
+}
+
+template <typename Field>
+void FFT<Field>::shuffle(Element *dst, Element *src, uint64_t n, uint64_t s) {
+    uint64_t srcRowSize = 1<<s;
+
+    uint64_t srcX = 0;
+    uint64_t srcWidth = 1<<s; 
+    uint64_t srcY = 0;
+    uint64_t srcHeight = n/srcRowSize;
+
+    uint64_t dstRowSize = n/srcRowSize;
+    uint64_t dstX = 0;
+    uint64_t dstY = 0;
+
+    #pragma omp parallel
+    #pragma omp single
+    traspose(dst, src, srcRowSize, srcX, srcWidth, srcY, srcHeight, dstRowSize, dstX, dstY);
+    #pragma omp taskwait
+ }
+
+#define CACHESIZE 1<<18
+
+template <typename Field>
+void FFT<Field>::traspose(
+    Element *dst, 
+    Element *src, 
+    uint64_t srcRowSize, 
+    uint64_t srcX, 
+    uint64_t srcWidth, 
+    uint64_t srcY, 
+    uint64_t srcHeight, 
+    uint64_t dstRowSize, 
+    uint64_t dstX, 
+    uint64_t dstY) 
+{
+    if ((srcWidth == 1) || (srcHeight==1) || (srcWidth*srcHeight < CACHESIZE)) {
+        #pragma omp task
+        {
+            for (uint64_t x=0; x<srcWidth; x++) {
+                for (uint64_t y=0; y<srcHeight; y++) {
+                    f.copy(dst[(dstY+ +x)*dstRowSize + (dstX + y) ],src[(srcY+ +y)*srcRowSize + (srcX + x) ]);
+                }
+            }
+        }
+        return;
+    }
+    if (srcWidth > srcHeight) {
+        traspose(dst, src, srcRowSize, srcX             , srcWidth/2, srcY, srcHeight, dstRowSize, dstX, dstY             );
+        traspose(dst, src, srcRowSize, srcX + srcWidth/2, srcWidth/2, srcY, srcHeight, dstRowSize, dstX, dstY + srcWidth/2);
+    } else {
+        traspose(dst, src, srcRowSize, srcX, srcWidth, srcY              , srcHeight/2, dstRowSize, dstX            , dstY);
+        traspose(dst, src, srcRowSize, srcX, srcWidth, srcY + srcHeight/2, srcHeight/2, dstRowSize, dstX+srcHeight/2, dstY);
+    }
+}
+
 
 template <typename Field>
 void FFT<Field>::ifft(Element *a, u_int64_t n ) {
