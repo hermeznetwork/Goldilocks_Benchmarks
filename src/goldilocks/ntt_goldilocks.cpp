@@ -35,7 +35,8 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n)
     for (u_int64_t s = 1; s <= domainPow; s += maxBatchPow)
     {
         u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s + 1;
-
+        omp_set_dynamic(0);
+        omp_set_num_threads(nThreads);
 #pragma omp parallel for
         for (u_int64_t b = 0; b < nBatches; b++)
         {
@@ -50,32 +51,27 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n)
                 u_int64_t mdiv2 = m >> 1;
                 u_int64_t mdiv2i = 1 << si;
                 u_int64_t mi = mdiv2i * 2;
+                u_int64_t j_tmp = (b * batchSize / 2);
+                j_tmp = (j_tmp & rm) * rb + (j_tmp >> (re - rs));
+                j_tmp = j_tmp % mdiv2;
+                u_int64_t w = root(s + si, j_tmp);
+                u_int64_t wi = root(s + si, 1);
+                u_int64_t mask = mdiv2i - 1;
+                u_int64_t k1 = b * batchSize;
+                u_int64_t k2 = mi / mdiv2i;
+
                 for (u_int64_t i = 0; i < (batchSize >> 1); i++)
                 {
                     u_int64_t t;
                     u_int64_t u;
+                    u_int64_t ki = k1 + k2 * i;
+                    u_int64_t ji = i & mask;
 
-                    u_int64_t ki = b * batchSize + (i / mdiv2i) * mi;
-                    u_int64_t ji = i % mdiv2i;
-
-                    u_int64_t j = (b * batchSize / 2 + i);
-
-                    j = (j & rm) * rb + (j >> (re - rs));
-
-                    j = j % mdiv2;
-                    t = gl_mmul2(root(s + si, j), a[ki + ji + mdiv2i]);
+                    t = gl_mmul2(w, a[ki + ji + mdiv2i]);
                     u = a[ki + ji];
                     a[ki + ji] = gl_add(t, u);
                     a[ki + ji + mdiv2i] = gl_sub(u, t);
-
-                    if (a[ki + ji] >= GOLDILOCKS_PRIME)
-                    {
-                        a[ki + ji] = a[ki + ji] % GOLDILOCKS_PRIME;
-                    }
-                    if (a[ki + ji + mdiv2i] >= GOLDILOCKS_PRIME)
-                    {
-                        a[ki + ji + mdiv2i] = a[ki + ji + mdiv2i] % GOLDILOCKS_PRIME;
-                    }
+                    w = gl_mmul2(w, wi);
                 }
             }
         }
@@ -87,7 +83,7 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n)
     }
     if (a != _a)
     {
-        printf("baaaaad!\n");
+        // printf("baaaaad!\n");
         shuffle(a, a2, n, 0);
     }
     delete aux_a;

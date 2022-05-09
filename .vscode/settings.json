@@ -10,6 +10,10 @@
         "unordered_map": "cpp",
         "vector": "cpp",
         "initializer_list": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "*.org": "cpp",
+        "bitset": "cpp",
+        "set": "cpp",
+        "random": "cpp"
     }
 }
