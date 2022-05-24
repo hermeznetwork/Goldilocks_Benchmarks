@@ -1,0 +1,173 @@
+#include <benchmark/benchmark.h>
+#include "goldilocks/ntt_goldilocks.hpp"
+#include "poseidon_goldilocks_opt.hpp"
+#include <stdio.h>
+#include <string.h>
+#include <cstring>
+#include <openssl/md5.h>
+#include <sstream>
+
+#define NUM_COLUMNS 25000
+#define RATE 8
+#define CAPACITY 4
+#define NUM_ROWS (1 << 25)
+
+static void POSEIDON_SINGLE_BENCH(benchmark::State &state)
+{
+    uint64_t hash_input_size = NUM_COLUMNS * (RATE + CAPACITY);
+    uint64_t *fibonacci = (uint64_t *)malloc(hash_input_size * sizeof(uint64_t));
+    uint64_t *pol_input = (uint64_t *)malloc(hash_input_size * sizeof(uint64_t));
+    uint64_t *pol_output = (uint64_t *)malloc(hash_input_size * sizeof(uint64_t));
+
+    Goldilocks g(NUM_COLUMNS, 8);
+
+    // Fibonacci
+    fibonacci[0] = 0;
+    fibonacci[1] = 1;
+    for (uint64_t i = 2; i < NUM_COLUMNS * (RATE + CAPACITY); i++)
+    {
+        fibonacci[i] = g.gl_add(fibonacci[i - 1], fibonacci[i - 2]);
+    }
+
+    for (auto _ : state)
+    {
+#pragma omp parallel for num_threads(state.range(0))
+        for (uint64_t i = 0; i < NUM_COLUMNS; i++)
+        {
+            uint64_t pol_input_t[12];
+            std::memcpy(pol_input_t, &fibonacci[i * (RATE + CAPACITY)], (RATE + CAPACITY) * sizeof(uint64_t));
+            Poseidon_goldilocks_opt::hash(pol_input_t);
+            std::memcpy(&pol_output[i * (RATE + CAPACITY)], &pol_input_t[0], (RATE + CAPACITY) * sizeof(uint64_t));
+        }
+    }
+    /*
+  // FIBONACCI
+  assert(pol_input[0] == 0x3095570037f4605d);
+  assert(pol_input[1] == 0x3d561b5ef1bc8b58);
+  assert(pol_input[2] == 0x8129db5ec75c3226);
+  assert(pol_input[3] == 0x8ec2b67afb6b87ed);
+
+
+  assert(pol_input[0] == 0x3C18A9786CB0B359);
+  assert(pol_input[1] == 0xC4055E3364A246C3);
+  assert(pol_input[2] == 0x7953DB0AB48808F4);
+  assert(pol_input[3] == 0xC71603F33A1144CA);
+  */
+    unsigned char result[MD5_DIGEST_LENGTH];
+    std::string currentHash;
+
+    std::string pol;
+    for (uint64_t i = 0; i < NUM_COLUMNS * (RATE + CAPACITY); i++)
+    {
+
+        std::ostringstream os;
+        os << pol_output[i];
+        pol += os.str();
+    }
+
+    MD5((unsigned char *)pol.c_str(), pol.size(), result);
+
+    char tempHash[32];
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++)
+    {
+        sprintf(tempHash, "%02x", result[i]);
+        currentHash.append(tempHash);
+    }
+    if (NUM_COLUMNS == 25000)
+        assert(currentHash == "894b1d8d817a0bd1ad34b6ac8e6a91e4");
+    free(fibonacci);
+    free(pol_input);
+    state.counters["Rate"] = benchmark::Counter((double)NUM_COLUMNS / (double)state.range(0), benchmark::Counter::kIsIterationInvariantRate | benchmark::Counter::kInvert);
+    state.counters["BytesProcessed"] = benchmark::Counter(hash_input_size * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
+}
+
+static void DISABLED_FFT_BENCH(benchmark::State &state)
+{
+
+    uint64_t length = 1 << state.range(0);
+    uint64_t *pol = (uint64_t *)malloc(length * sizeof(uint64_t));
+    Goldilocks g(length, 8);
+
+    // Fibonacci
+    pol[0] = 0;
+    pol[1] = 1;
+    for (uint64_t i = 2; i < length; i++)
+    {
+        pol[i] = g.gl_add(pol[i - 1], pol[i - 2]);
+    }
+
+    for (auto _ : state)
+    {
+#pragma omp parallel for schedule(static)
+        for (uint64_t i = 0; i < 1; i++)
+        {
+            g.ntt(pol, length);
+            g.intt(pol, length);
+        }
+    }
+}
+
+static void DISABLED_LDE_BENCH(benchmark::State &state)
+{
+
+    uint64_t length = 1 << state.range(0);
+    uint64_t extensionLength = 1 << (state.range(0) + 1);
+    Goldilocks g(length, 8);
+    Goldilocks ge(extensionLength, 8);
+    uint64_t *pol = (uint64_t *)malloc(length * sizeof(uint64_t));
+    uint64_t *pol_ext = (uint64_t *)malloc(extensionLength * sizeof(uint64_t));
+
+    // Fibonacci
+    pol[0] = 0;
+    pol[1] = 1;
+    for (uint64_t i = 2; i < length; i++)
+    {
+        pol[i] = g.gl_add(pol[i - 1], pol[i - 2]);
+    }
+
+    std::memcpy(pol_ext, pol, length * sizeof(uint64_t));
+
+    uint64_t r = 1;
+    uint64_t shift = 25;
+
+    for (auto _ : state)
+    {
+#pragma omp parallel for schedule(static)
+        for (uint64_t i = 0; i < 100; i++)
+        {
+            g.intt(pol_ext, length);
+            for (uint j = 0; j < length; j++)
+            {
+                pol_ext[j] = g.gl_mmul2(pol_ext[j], r);
+                r = g.gl_mmul2(r, shift);
+            }
+
+            ge.ntt(pol_ext, extensionLength);
+        }
+    }
+}
+
+/*
+static void main_poseidon(benchmark::State &state)
+{
+    uint64_t input[SPONGE_WIDTH] = {0};
+    for (auto _ : state)
+    {
+        // memset(input, 0, SPONGE_WIDTH * sizeof(uint64_t));
+        Poseidon_goldilocks::hash(input);
+    }
+    assert(input[0] == 0x3C18A9786CB0B359);
+    assert(input[1] == 0xC4055E3364A246C3);
+    assert(input[2] == 0x7953DB0AB48808F4);
+    assert(input[3] == 0xC71603F33A1144CA);
+
+}*/
+
+BENCHMARK(POSEIDON_SINGLE_BENCH)->Unit(benchmark::kMicrosecond)->DenseRange(1, 1, 1)->RangeMultiplier(2)->Range(2, 2 << 4)->DenseRange(50, 70, 1);
+BENCHMARK(DISABLED_FFT_BENCH)
+    ->DenseRange(23, 23, 1)
+    ->Unit(benchmark::kMillisecond)
+    ->Iterations(6);
+BENCHMARK(DISABLED_LDE_BENCH)->DenseRange(23, 23, 1)->Unit(benchmark::kMillisecond)->Iterations(6);
+
+BENCHMARK_MAIN();

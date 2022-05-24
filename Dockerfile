@@ -7,7 +7,8 @@ RUN apt update && apt install -y \
     libgmp-dev \
     libbenchmark-dev \
     nasm \
-    libomp-dev
+    libomp-dev \
+    openmpi-bin openmpi-common libopenmpi3 libopenmpi-dev
 
 COPY . /usr/src/app
 

@@ -8,10 +8,11 @@ ifndef LIBOMP
 $(error LIBOMP is not set, you need to install libomp-dev)
 endif
 
-CXX := g++
+CXX := mpiCC
+#CXX = g++
 AS := nasm
 CXXFLAGS := -std=c++17 -Wall -pthread -fopenmp
-LDFLAGS := -lpthread -lgmp -lstdc++ -lomp -lgmpxx -lbenchmark -L$(LIBOMP)
+LDFLAGS := -lpthread -lgmp -lstdc++ -lomp -lgmpxx -lbenchmark -lcrypto -L$(LIBOMP)
 ASFLAGS := -felf64 
 
 # Debug build flags

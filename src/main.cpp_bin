@@ -1,0 +1,73 @@
+#include <stdio.h>
+#include <string.h>
+#include <cstring>
+#include <openssl/md5.h>
+#include <sstream>
+//#include "mpi.h"
+#include "goldilocks/ntt_goldilocks.hpp"
+#include "poseidon_goldilocks_opt.hpp"
+
+#define NUM_COLUMNS 1
+#define RATE 8
+#define CAPACITY 4
+#define NUM_ROWS (1 << 25)
+
+int main()
+{
+    Goldilocks g(NUM_COLUMNS, 8);
+
+    uint64_t hash_input_size = (RATE + CAPACITY);
+    uint64_t *fibonacci = (uint64_t *)malloc(hash_input_size * sizeof(uint64_t));
+    uint64_t *input = (uint64_t *)malloc(hash_input_size * sizeof(uint64_t));
+
+    // Fibonacci
+    fibonacci[0] = 0;
+    fibonacci[1] = 1;
+    for (uint64_t i = 2; i < (RATE + CAPACITY); i++)
+    {
+        fibonacci[i] = g.gl_add(fibonacci[i - 1], fibonacci[i - 2]);
+    }
+    double st = omp_get_wtime();
+    uint64_t acc = 0;
+#pragma omp parallel for num_threads(128)
+    for (uint64_t i = 0; i < 64000000; i++)
+    {
+        uint64_t pol_input[12];
+        std::memcpy(pol_input, fibonacci, hash_input_size * sizeof(uint64_t));
+        pol_input[0] = i;
+        Poseidon_goldilocks_opt::hash((uint64_t(&)[SPONGE_WIDTH])pol_input[0]);
+        // acc = acc + input[0] + input[11];
+    }
+    double runtime = omp_get_wtime() - st;
+    unsigned char result[MD5_DIGEST_LENGTH];
+    std::string currentHash;
+    /*
+    assert(input[0] == 0x3C18A9786CB0B359);
+    assert(input[1] == 0xC4055E3364A246C3);
+    assert(input[2] == 0x7953DB0AB48808F4);
+    assert(input[3] == 0xC71603F33A1144CA);
+    */
+    /*
+    std::string pol;
+    for (uint64_t i = 0; i < NUM_COLUMNS * (RATE + CAPACITY); i++)
+    {
+
+        std::ostringstream os;
+        os << input[i];
+        pol += os.str();
+    }
+
+    MD5((unsigned char *)pol.c_str(), pol.size(), result);
+
+    char tempHash[32];
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++)
+    {
+        sprintf(tempHash, "%02x", result[i]);
+        currentHash.append(tempHash);
+    }
+    assert(currentHash == "894b1d8d817a0bd1ad34b6ac8e6a91e4");*/
+
+    printf("acc: %lu runtime: %f\n", acc, runtime);
+    free(fibonacci);
+    return 0;
+}

@@ -51,15 +51,23 @@ private:
 
     inline static uint64_t gl_add(uint64_t in1, uint64_t in2)
     {
+        /*
+                xor     r10, r10
+                mov     rax, rdi
+                add     rax, rsi
+                cmovc   r10, qword [cq]
+                add     rax, r10
+                ret
+        */
         uint64_t res;
-        __asm__("mov   %1, %0\n\t"
+        __asm__("xor   %%r10, %%r10\n\t"
+                "mov   %1, %0\n\t"
                 "add   %2, %0\n\t"
-                "jnc  1f\n\t"
-                "add   %3, %0\n\t"
-                "1: \n\t"
+                "cmovc %3, %%r10\n\t"
+                "add   %%r10, %0\n\t"
                 : "=&a"(res)
                 : "r"(in1), "r"(in2), "m"(CQ)
-                :);
+                : "%r10");
         return res;
     };
 
@@ -80,7 +88,8 @@ private:
     inline static uint64_t gl_mmul(uint64_t in1, uint64_t in2)
     {
         uint64_t res;
-        __asm__("mov   %1, %%rax\n\t"
+        __asm__("xor   %%r10, %%r10\n\t"
+                "mov   %1, %%rax\n\t"
                 "mul   %2\n\t"
                 "mov   %%rdx, %%r8\n\t"
                 "mov   %%rax, %%r9\n\t"
@@ -88,12 +97,11 @@ private:
                 "mulq   %4\n\t"
                 "add    %%r9, %%rax\n\t"
                 "adc    %%r8, %%rdx\n\t"
-                "jnc  1f\n\t"
-                "add   %5, %%rdx\n\t"
-                "1:"
+                "cmovc %5, %%r10\n\t"
+                "add   %%r10, %%rdx\n\t"
                 : "=&d"(res)
                 : "r"(in1), "r"(in2), "m"(MM), "m"(Q), "m"(CQ)
-                : "%rax", "%r8", "%r9");
+                : "%rax", "%r8", "%r9", "%r10");
         return res;
     }
 
