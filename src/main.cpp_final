@@ -81,6 +81,12 @@ static void POSEIDON_SINGLE_BENCH(benchmark::State &state)
     state.counters["BytesProcessed"] = benchmark::Counter(hash_input_size * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
+static void DISABLED_LINEAL_HASH_BENCH(benchmark::State &state)
+{
+    for (auto _ : state)
+    {
+    }
+}
 static void DISABLED_FFT_BENCH(benchmark::State &state)
 {
 
@@ -147,23 +153,9 @@ static void DISABLED_LDE_BENCH(benchmark::State &state)
     }
 }
 
-/*
-static void main_poseidon(benchmark::State &state)
-{
-    uint64_t input[SPONGE_WIDTH] = {0};
-    for (auto _ : state)
-    {
-        // memset(input, 0, SPONGE_WIDTH * sizeof(uint64_t));
-        Poseidon_goldilocks::hash(input);
-    }
-    assert(input[0] == 0x3C18A9786CB0B359);
-    assert(input[1] == 0xC4055E3364A246C3);
-    assert(input[2] == 0x7953DB0AB48808F4);
-    assert(input[3] == 0xC71603F33A1144CA);
-
-}*/
-
 BENCHMARK(POSEIDON_SINGLE_BENCH)->Unit(benchmark::kMicrosecond)->DenseRange(1, 1, 1)->RangeMultiplier(2)->Range(2, 2 << 4)->DenseRange(50, 70, 1);
+BENCHMARK(DISABLED_LINEAL_HASH_BENCH)->Unit(benchmark::kMicrosecond)->DenseRange(1, 1, 1)->RangeMultiplier(2)->Range(2, 2 << 4)->DenseRange(50, 70, 1);
+
 BENCHMARK(DISABLED_FFT_BENCH)
     ->DenseRange(23, 23, 1)
     ->Unit(benchmark::kMillisecond)
