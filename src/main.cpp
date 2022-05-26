@@ -345,7 +345,7 @@ static void TREE_BENCH(benchmark::State &state)
         {
 
             // printf("##########\n");
-
+#pragma omp parallel for
             for (uint64_t j = 0; j < NUM_ROWS; j += (2 * NUM_ROWS / pending))
             {
 
