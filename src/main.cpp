@@ -8,10 +8,10 @@
 #include <sstream>
 #include <math.h> /* round, floor, ceil, trunc */
 
-#define NUM_COLS 10
+#define NUM_COLS 100
 #define RATE 8
 #define CAPACITY 4
-#define NUM_ROWS (1 << 3)
+#define NUM_ROWS (1 << 25)
 
 void linear_hash(uint64_t *output, uint64_t *input, uint64_t size)
 {
@@ -39,18 +39,22 @@ void linear_hash(uint64_t *output, uint64_t *input, uint64_t size)
         }
         std::memcpy(state, input + (size - remaining), n * sizeof(uint64_t));
 
+        /*
         printf("linear_hash (");
         for (uint64_t j = 0; j < SPONGE_WIDTH; j++)
         {
             printf(" %#lx ", state[j]);
         }
         printf(") -> ( ");
+        */
         Poseidon_goldilocks_opt::hash(state);
+        /*
         for (uint64_t j = 0; j < 4; j++)
         {
             printf(" %#lx ", state[j]);
         }
         printf(")\n");
+        */
         remaining -= n;
     }
     std::memcpy(output, state, 4 * sizeof(uint64_t));
@@ -82,18 +86,22 @@ void linear_hash_bobbin(uint64_t *output, uint64_t *input, uint64_t size)
         }
         std::memcpy(state, input + (size - remaining), n * sizeof(uint64_t));
 
+        /*
         printf("linear_hash (");
         for (uint64_t j = 0; j < SPONGE_WIDTH; j++)
         {
             printf(" %#lx ", state[j]);
         }
         printf(") -> ( ");
+        */
         Poseidon_goldilocks_opt::hash(state);
+        /*
         for (uint64_t j = 0; j < 4; j++)
         {
             printf(" %#lx ", state[j]);
         }
         printf(")\n");
+        */
         remaining -= n;
     }
     std::memcpy(output, state, 4 * sizeof(uint64_t));
@@ -260,9 +268,6 @@ static void DISABLED_LINEAL_HASH_BOBIN_BENCH(benchmark::State &state)
 
 static void TREE_BENCH(benchmark::State &state)
 {
-    uint64_t num_batches = ceil((float)NUM_COLS / (float)RATE);
-    uint64_t hash_input_size = num_batches * RATE + CAPACITY;
-
     uint64_t *pol_0 = (uint64_t *)malloc(NUM_ROWS * sizeof(uint64_t));
     uint64_t **cols = (uint64_t **)malloc(NUM_COLS * sizeof(uint64_t **));
 
@@ -288,6 +293,7 @@ static void TREE_BENCH(benchmark::State &state)
         }
         cols[i] = pol;
     }
+    /*
     printf("---------\n");
     for (uint64_t i = 0; i < NUM_ROWS; i++)
     {
@@ -298,7 +304,7 @@ static void TREE_BENCH(benchmark::State &state)
 
         printf("\n");
     }
-
+    */
     for (auto _ : state)
     {
 
@@ -307,24 +313,9 @@ static void TREE_BENCH(benchmark::State &state)
         {
             std::memcpy(&pol_input[hash_input_size - CAPACITY - RATE * (i + 1)], &(rows[j])[i * RATE], std::min((uint64_t)RATE, NUM_COLS - i * RATE) * sizeof(uint64_t));
         }*/
-        /*
-        0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
-
-            24 25 26 27 28 29 30 31 16 17 18 19 20 21 22 23 8 9 10 11 12 13 14 15 0 1 2 3 4 5 6 7 0 0 0 0 ^
-            8 9 10 11 12 13 14 15
-
-                0 8 16 24 0 0 0 0 1 9 17 25 0 0 0 0 2 10 18 26 0 0 0 0 3 11 19 27 0 0 0 0 4 12 20 28 0 0 0 0 5 13 21 29 0 0 0 0 6 14 22 30 0 0 0 0 7 15 23 31 0 0 0 0
-
-                7 15 23 31 0 0 0 0 6 14 22 30 0 0 0 0 5 13 21 29 0 0 0 0 4 12 20 28 0 0 0 0 3 11 19 27 0 0 0 0 2 10 18 26 0 0 0 0 1 9 17 25 0 0 0 0 0 8 16 24 0 0 0 0 0 0 0 0
-
-                0 8 16 24 32 40 48 56 0 0 0 0 64->h0[0] -
-                h0[11]
-
-                64 0 0 0 0 0 0 0 h0[0] h0[1] h0[2] h0[3]*/
-
         uint64_t *intermediate = (uint64_t *)malloc((uint64_t)NUM_COLS * (uint64_t)NUM_ROWS * sizeof(uint64_t));
 
-        //#pragma omp parallel for
+#pragma omp parallel for
         for (uint64_t i = 0; i < NUM_ROWS; i++)
         {
             for (uint64_t j = 0; j < NUM_COLS; j++)
@@ -334,24 +325,26 @@ static void TREE_BENCH(benchmark::State &state)
         }
         uint64_t *intermediate_2 = (uint64_t *)malloc(4 * NUM_ROWS * sizeof(uint64_t));
 
-        printf("---------\n");
-        //#pragma omp parallel for
+        // printf("---------\n");
+#pragma omp parallel for
         for (uint64_t i = 0; i < NUM_ROWS; i++)
         {
             linear_hash(intermediate_2 + i * 4, intermediate + (i * NUM_COLS), NUM_COLS);
+            /*
             printf("result: ");
             for (uint64_t j = 0; j < 4; j++)
             {
                 printf(" %#lx ", intermediate_2[i * 4 + j]);
             }
             printf("\n---------\n");
+            */
         }
         uint64_t pending = NUM_ROWS;
-        printf("Merkle Tree\n");
+        // printf("Merkle Tree\n");
         while (pending > 1)
         {
 
-            printf("##########\n");
+            // printf("##########\n");
 
             for (uint64_t j = 0; j < NUM_ROWS; j += (2 * NUM_ROWS / pending))
             {
@@ -360,57 +353,27 @@ static void TREE_BENCH(benchmark::State &state)
                 std::memcpy(pol_input, &intermediate_2[j * CAPACITY], CAPACITY * sizeof(uint64_t));
                 std::memcpy(&pol_input[CAPACITY], &intermediate_2[(j + (NUM_ROWS / pending)) * CAPACITY], CAPACITY * sizeof(uint64_t));
 
+                /*
                 printf("hash (");
                 for (uint64_t k = 0; k < SPONGE_WIDTH; k++)
                 {
                     printf(" %#lx ", pol_input[k]);
                 }
                 printf(") -> \n\t(");
+                */
 
                 Poseidon_goldilocks_opt::hash(pol_input);
                 std::memcpy(&intermediate_2[j * CAPACITY], pol_input, CAPACITY * sizeof(uint64_t));
+                /*
                 for (uint64_t j = 0; j < 4; j++)
                 {
                     printf(" %#lx ", pol_input[j]);
                 }
                 printf(")\n");
+                */
             }
             pending = pending / 2;
         }
-        // printf("##########\n");
-        /*
-        for (int i = hash_input_size - SPONGE_WIDTH; i >= 0; i -= RATE)
-        {
-            Poseidon_goldilocks_opt::hash((uint64_t(&)[SPONGE_WIDTH])pol_input[i]);
-        }
-        delete rows[j];
-        rows[j] = pol_input;
-        */
-
-        /*
-        uint64_t pending = NUM_ROWS;
-        while (pending > 1)
-        {
-            // printf("##########\n");
-#pragma omp parallel for num_threads(state.range(0))
-            for (uint64_t j = 0; j < NUM_ROWS; j += (2 * NUM_ROWS / pending))
-            {
-                // printf("NUM_ROWS:%lu pending:%lu j: %lu j_next: %lu\n", NUM_ROWS, pending, j, j + (NUM_ROWS / pending));
-
-                uint64_t *pol_input = (uint64_t *)malloc(SPONGE_WIDTH * sizeof(uint64_t));
-                memset(pol_input, 0, SPONGE_WIDTH * sizeof(uint64_t));
-
-                std::memcpy(pol_input, rows[j], CAPACITY * sizeof(uint64_t));
-                std::memcpy(&pol_input[CAPACITY], rows[j + (NUM_ROWS / pending)], CAPACITY * sizeof(uint64_t));
-
-                Poseidon_goldilocks_opt::hash((uint64_t(&)[SPONGE_WIDTH])pol_input[0]);
-                delete rows[j];
-                rows[j] = pol_input;
-
-            }
-            pending = pending / 2;
-        }
-        */
     }
     /*
     printf("________________________________\n");
