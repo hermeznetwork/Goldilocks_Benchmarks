@@ -7,9 +7,20 @@
 #include <iostream>
 #include <cassert>
 #include <gmp.h>
+#include "poseidon_goldilocks_opt_constants.hpp"
 
+#define SPONGE_WIDTH 12
 #define GOLDILOCKS_PRIME 0xFFFFFFFF00000001ULL
 #define uint128_t __uint128_t
+
+#define MAX_WIDTH 12
+#define HALF_N_FULL_ROUNDS 4
+#define N_FULL_ROUNDS_TOTAL (2 * HALF_N_FULL_ROUNDS)
+#define N_PARTIAL_ROUNDS 22
+#define N_ROUNDS (N_FULL_ROUNDS_TOTAL + N_PARTIAL_ROUNDS)
+#define RATE 8
+#define CAPACITY 4
+#define ASM 1
 
 #define CACHESIZE 1 << 18
 
@@ -97,7 +108,7 @@ public:
         {
             // roots[i] = gl_mmul(roots[i - 1], roots[1]);
 
-            roots[i] = gl_mmul2(roots[i - 1], roots[1]);
+            roots[i] = gl_mmul(roots[i - 1], roots[1]);
             // assert(roots[i] == aux);
         }
 
@@ -117,6 +128,9 @@ public:
     };
     void ntt(u_int64_t *a, u_int64_t n);
     void reversePermutation(u_int64_t *dst, u_int64_t *a, u_int64_t n);
+    void static hash(uint64_t (&input)[SPONGE_WIDTH]);
+    void static linear_hash(uint64_t *output, uint64_t *input, uint64_t size);
+
     u_int32_t log2(u_int64_t n);
 
     void printVector(u_int64_t *a, u_int64_t n);
@@ -257,6 +271,22 @@ public:
                              : "%rax", "%r8", "%r9", "%r10");
         return res;
     }
+
+    inline void static pow7(uint64_t &x)
+    {
+#if ASM == 1
+        uint64_t x2 = Goldilocks::gl_mmul(x, x);
+        uint64_t x3 = Goldilocks::gl_mmul(x, x2);
+        uint64_t x4 = Goldilocks::gl_mmul(x2, x2);
+
+        x = Goldilocks::gl_mmul(x3, x4);
+#else
+        uint128_t x2 = ((uint128_t)x * (uint128_t)x) % GOLDILOCKS_PRIME;
+        uint128_t x4 = (x2 * x2) % GOLDILOCKS_PRIME;
+        uint128_t x3 = ((uint128_t)x * x2) % GOLDILOCKS_PRIME;
+        x = (x3 * x4) % GOLDILOCKS_PRIME;
+#endif
+    };
 
     inline uint64_t &root(u_int32_t domainPow, u_int64_t idx)
     {
