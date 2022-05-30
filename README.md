@@ -1,8 +1,8 @@
 # Build Instructions
 ## Pre-requisites 
-### build-essential, cmake and OMP
+### build-essential, cmake, GMP and OMP
 ```
-$ apt install -y build-essential libomp-dev cmake
+$ apt install -y build-essential libomp-dev cmake libgmp3-dev
 ```
 ### Install google benchmark
 
@@ -12,15 +12,39 @@ $ cd benchmark
 $ cmake -E make_directory "build"
 $ cmake -E chdir "build" cmake -DBENCHMARK_DOWNLOAD_DEPENDENCIES=on -DCMAKE_BUILD_TYPE=Release ../
 $ cmake --build "build" --config Release
+$ sudo cmake --build "build" --config Release --target install
+```
+## Build
+```
+$ git clone https://github.com/hermeznetwork/Goldilocks_Benchmarks
+$ make -j
+
 ```
 
-Run
+## Run
 
 ```
 & ./build/benchmark --benchmark_counters_tabular=true
 ```
 
-## Results
+## Notes
+* To disable a test you only need to add `DISABLE_` to the function name and its benchmark:
+```
+...
+static void DISABLE_POSEIDON_BENCH(benchmark::State &state)
+...
+BENCHMARK(DISABLE_POSEIDON_BENCH)
+...
+```
+* Parameters
+```
+#define NUM_COLS 100
+#define NUM_HASHES 10000 -> poseidon benchmark
+#define FFT_SIZE (1 << 23)
+#define NUM_ROWS (1 << 25)
+``` 
+
+# Results
 ### AMD Ryzen Threadripper 3990X 64-Core Processor & 256GB RAM
 
 ```bash
@@ -79,8 +103,113 @@ LDE_BENCH/68/real_time                   14.3 s          12.7 s             1
 LDE_BENCH/128/real_time                  11.2 s          10.5 s             1
 ```
 
+### AWS c6a.16xlarge
+```
+-------------------------------------------------------------------------------------------------------
+Benchmark                                   Time             CPU   Iterations BytesProcessed       Rate
+-------------------------------------------------------------------------------------------------------
+POSEIDON_BENCH/1/real_time              35293 us        35293 us           20     25.9407M/s  3.52931us
+POSEIDON_BENCH/2/real_time              17563 us        17563 us           38     52.1274M/s  3.51265us
+POSEIDON_BENCH/4/real_time               8782 us         8782 us           79     104.247M/s  3.51292us
+POSEIDON_BENCH/8/real_time               4883 us         4883 us          159     187.504M/s  3.90616us
+POSEIDON_BENCH/16/real_time              2338 us         2338 us          232     391.622M/s  3.74046us
+POSEIDON_BENCH/32/real_time              2097 us         2097 us          329     436.675M/s  6.70908us
+POSEIDON_BENCH/64/real_time              1055 us         1055 us          664     868.141M/s  6.74934us
+POSEIDON_BENCH/28/real_time              2397 us         2396 us          289     381.973M/s  6.71115us
+POSEIDON_BENCH/30/real_time              1245 us         1245 us          529     735.584M/s  3.73388us
+POSEIDON_BENCH/32/real_time              1211 us         1211 us          601     756.166M/s   3.8744us
+POSEIDON_BENCH/34/real_time              1972 us         1972 us          356      464.21M/s  6.70558us
+POSEIDON_BENCH/36/real_time              1864 us         1863 us          376     491.285M/s  6.70873us
+LINEAR_HASH_SINGLE_BENCH/real_time       54.6 us         54.6 us        10000     13.9758M/s  4.19924us
+LINEAR_HASH_BENCH/28/real_time           58.7 s          58.5 s             1     435.922M/s  3.76961us
+LINEAR_HASH_BENCH/30/real_time           55.0 s          54.7 s             1     465.651M/s    3.781us
+LINEAR_HASH_BENCH/32/real_time           50.2 s          50.1 s             1     509.738M/s  3.68426us
+LINEAR_HASH_BENCH/34/real_time           69.6 s          48.5 s             1     367.784M/s  5.42541us
+LINEAR_HASH_BENCH/36/real_time           66.7 s          45.7 s             1     383.991M/s   5.5021us
+LINEAR_HASH_BENCH/64/real_time           48.7 s          47.1 s             1     525.508M/s  7.14739us
+MERKLE_TREE_BENCH/28/real_time           61.8 s          61.8 s             1     413.974M/s  3.96947us
+MERKLE_TREE_BENCH/30/real_time           58.3 s          58.2 s             1     439.181M/s  4.00889us
+MERKLE_TREE_BENCH/32/real_time           54.8 s          54.7 s             1     467.359M/s  4.01834us
+MERKLE_TREE_BENCH/34/real_time           73.3 s          73.3 s             1     349.287M/s  5.71273us
+MERKLE_TREE_BENCH/36/real_time           68.9 s          47.8 s             1     371.481M/s  5.68738us
+MERKLE_TREE_BENCH/64/real_time           50.9 s          50.9 s             1     503.318M/s   7.4625us
+iNTT_BENCH/28/real_time                  7.64 s          7.46 s             1     837.836M/s   2.13884s
+iNTT_BENCH/30/real_time                  7.79 s          7.56 s             1     821.557M/s   2.33703s
+iNTT_BENCH/32/real_time                  9.67 s          9.43 s             1     662.071M/s   3.09332s
+iNTT_BENCH/34/real_time                  6.39 s          6.11 s             1     1001.36M/s   2.17305s
+iNTT_BENCH/36/real_time                  6.01 s          5.82 s             1     1064.23M/s   2.16494s
+iNTT_BENCH/64/real_time                  4.54 s          4.38 s             1      1.3755G/s   2.90803s
+LDE_BENCH/28/real_time                   25.3 s          24.7 s             1     758.254M/s   7.08997s
+LDE_BENCH/30/real_time                   26.5 s          25.5 s             1     725.336M/s   7.94115s
+LDE_BENCH/32/real_time                   25.4 s          24.6 s             1     757.306M/s   8.11297s
+LDE_BENCH/34/real_time                   19.7 s          19.5 s             1     972.799M/s   6.71053s
+LDE_BENCH/36/real_time                   20.0 s          19.8 s             1     960.706M/s   7.19471s
+LDE_BENCH/64/real_time                   16.5 s          15.0 s             1     1.13618G/s   10.5617s
+```
+## __Benchmarks__
 
-## Linear HASH
+### __POSEIDON_BENCH__
+
+__Test vector__: Fibonacci series -> [ 0 1 1 2 3 5 8 13 ... NUM_HASHES * SPONGE_WIDTH ... ]
+
+Parallel calculation of `NUM_HASHES` poseidons with different numbers of threads.
+
+### __LINEAR_HASH_SINGLE_BENCH__
+
+__Test vector__: Fibonacci series -> [ 1 2 3 4 5 6 7 8 ... NUM_COLS + 1 ]
+
+Measures the time to calculate a linearhash, the number of hashes to calculate is `ceil(NUM_COLS/RATE)`
+
+Example:
+```
+Input: 0x1,0x2,0x3,0x4,0x5,0x6,0x7,0x8,0x9,0xa
+
+linear_hash (0x1,0x2,0x3,0x4,0x5,0x6,0x7,0x8,0,0,0,0) -> (0xd110aa6a46373941,0x8f238fcceb658894,0x9cd4f8353866fb4f, 0x274913f0007aa232)
+linear_hash (0x9,0xa,0,0,0,0,0,0,0xd110aa6a46373941,0x8f238fcceb658894,0x9cd4f8353866fb4f,0x274913f0007aa232) -> (0x52a855f38bb05faf,0xa31e6272e294d7ab,0xd5499446c76d4674,0xaec3c33bd1409ae9)
+
+result:  0x52a855f38bb05faf  0xa31e6272e294d7ab  0xd5499446c76d4674  0xaec3c33bd1409ae9 
+```
+
+### __LINEAR_HASH_BENCH__
+
+Compute a linear hash of 100 elements 2^25 times											
+__Test vector__: Fibonacci series on the columns up to NUM_ROWS and increase the initial values every colum up to NUM COLS:
+```
+1 2 3 4  5  6  ... NUM_COLS
+1 2 3 4  5  6  ... NUM_COLS
+2 4 6 8  10 12 ... NUM_COLS + NUM_COLS
+3 6 9 12 15 18 ... NUM_COLS + NUM_COLS + NUM_COLS
+...
+NUM_ROWS .. 
+```
+
+### __MERKLE_TREE_BENCH__
+
+Construct a Merkle tree from a matrix of 100 columns and 2^25 rows. The tree should be constructed by first computing a linear hash of elements in each row, and then building a binary Merkle tree from resulting hashes											
+__Test vector__: Fibonacci series on the columns up to NUM_ROWS and increase the initial values every colum up to NUM COLS:
+```
+1 2 3 4  5  6  ... NUM_COLS
+1 2 3 4  5  6  ... NUM_COLS
+2 4 6 8  10 12 ... NUM_COLS + NUM_COLS
+3 6 9 12 15 18 ... NUM_COLS + NUM_COLS + NUM_COLS
+...
+NUM_ROWS .. 
+```
+
+First the linear hash of the input matrix is computed and then the whole matrix is merkleized
+
+### __iNTT_BENCH__ ###
+
+Compute iNTT for the specified number columns (NUM_COLS) over a domain of 2^23 elements
+
+__Test vector__: Fibonacci series -> [ 0 1 1 2 3 5 8 13 ... FFT_SIZE ... ]
+
+### __LDE_BENCH__ ###
+
+Compute iNTT for the specified number columns over a domain of 2^23 elements, and then evaluate the resulting polynonomials using coset NTT over a domain defined by the specified blowup factor
+
+
+Example LINEAR HASH + MERKLETREE (NUM_COLS: 10,NUM_ROWS: 16)
 ```
 ---------
 (0,0): 0x1              (0,1): 0x2              (0,2): 0x3              (0,3): 0x4              (0,4): 0x5              (0,5): 0x6              (0,6): 0x7              (0,7): 0x8              (0,8): 0x9              (0,9): 0xa
@@ -164,9 +293,6 @@ linear_hash ( 0x3db  0x7b6  0xb91  0xf6c  0x1347  0x1722  0x1afd  0x1ed8  0  0  
 linear_hash ( 0x22b3  0x268e  0  0  0  0  0  0  0xccfa35c3ed7cab0c  0x6832774945a56705  0xae14b5c33b1043f7  0xff8a6fd855c65178 ) -> (  0x53e60202c1f7379d  0x7537f186259879ba  0xa491aedb479d0e7b  0xb1bc4f02ac188223 )
 result:  0x53e60202c1f7379d  0x7537f186259879ba  0xa491aedb479d0e7b  0xb1bc4f02ac188223 
 ---------
-```
-
-```
 Merkle Tree
 ##########
 hash ( 0x52a855f38bb05faf  0xa31e6272e294d7ab  0xd5499446c76d4674  0xaec3c33bd1409ae9  0x52a855f38bb05faf  0xa31e6272e294d7ab  0xd5499446c76d4674  0xaec3c33bd1409ae9  0  0  0  0 ) -> 
@@ -202,4 +328,5 @@ hash ( 0x6f159dfd0835443d  0x55d8a9877b672439  0x327dc934599e4bb7  0xa50a8c96611
 ##########
 hash ( 0x2e6407ab14535ea  0xa07ff473834f3ffe  0xd11c53907b647e8c  0x7ab22bb43b15585c  0xfc0d5425584071af  0xffeb54efc8fc83c8  0xf0f2465d67b66762  0xaf7bf91c1565eb2f  0  0  0  0 ) -> 
         ( 0x6790b537f607e9b1  0x6a4061557f6e9ae2  0x9008ee29d0ead7b  0xd5d920fb1c6e87ba )
+Result: 0x6790b537f607e9b1  0x6a4061557f6e9ae2  0x9008ee29d0ead7b  0xd5d920fb1c6e87ba 
 ```
