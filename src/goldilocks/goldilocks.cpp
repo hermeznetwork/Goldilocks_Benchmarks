@@ -1,4 +1,4 @@
-#include "ntt_goldilocks.hpp"
+#include "goldilocks.hpp"
 
 const uint64_t Goldilocks::Q = 0xFFFFFFFF00000001LL;
 const uint64_t Goldilocks::MM = 0xFFFFFFFeFFFFFFFFLL;

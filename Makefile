@@ -8,11 +8,10 @@ ifndef LIBOMP
 $(error LIBOMP is not set, you need to install libomp-dev)
 endif
 
-CXX := mpiCC
-#CXX = g++
-AS := nasm
+#CXX := mpiCC
+CXX = g++
 CXXFLAGS := -std=c++17 -Wall -pthread -fopenmp
-LDFLAGS := -lpthread -lgmp -lstdc++ -lomp -lgmpxx -lbenchmark -lcrypto -L$(LIBOMP)
+LDFLAGS := -lpthread -lgmp -lstdc++ -lomp -lgmpxx -lbenchmark -L$(LIBOMP)
 ASFLAGS := -felf64 
 
 # Debug build flags
@@ -49,11 +48,6 @@ CPPFLAGS ?= $(INC_FLAGS) -MMD -MP
 
 $(BUILD_DIR)/$(TARGET_EXEC): $(OBJS)
 	$(CXX) $(OBJS) $(CXXFLAGS) -o $@ $(LDFLAGS)
-
-# assembly
-$(BUILD_DIR)/%.asm.o: %.asm
-	$(MKDIR_P) $(dir $@)
-	$(AS) $(ASFLAGS) $< -o $@
 
 # c++ source
 $(BUILD_DIR)/%.cpp.o: %.cpp
