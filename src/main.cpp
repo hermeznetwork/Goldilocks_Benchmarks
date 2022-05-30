@@ -9,12 +9,13 @@
 #define NUM_HASHES 10000
 #define FFT_SIZE (1 << 23)
 #define NUM_ROWS (1 << 25)
+#define BLOWUP_FACTOR 4
 
 #define HASH_SIZE 4
 #define RATE 8
 #define CAPACITY 4
 
-static void POSEIDON_BENCH(benchmark::State &state)
+static void DISABLED_POSEIDON_BENCH(benchmark::State &state)
 {
     uint64_t input_size = NUM_HASHES * SPONGE_WIDTH;
 
@@ -57,7 +58,7 @@ static void POSEIDON_BENCH(benchmark::State &state)
     state.counters["BytesProcessed"] = benchmark::Counter(input_size * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
-static void LINEAR_HASH_SINGLE_BENCH(benchmark::State &state)
+static void DISABLED_LINEAR_HASH_SINGLE_BENCH(benchmark::State &state)
 {
     uint64_t cols[NUM_COLS];
 
@@ -90,7 +91,7 @@ static void LINEAR_HASH_SINGLE_BENCH(benchmark::State &state)
     state.counters["BytesProcessed"] = benchmark::Counter(NUM_COLS * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
-static void LINEAR_HASH_BENCH(benchmark::State &state)
+static void DISABLED_LINEAR_HASH_BENCH(benchmark::State &state)
 {
     uint64_t *cols = (uint64_t *)malloc((uint64_t)NUM_COLS * (uint64_t)NUM_ROWS * sizeof(uint64_t));
 
@@ -146,7 +147,7 @@ static void LINEAR_HASH_BENCH(benchmark::State &state)
     state.counters["BytesProcessed"] = benchmark::Counter((uint64_t)NUM_ROWS * (uint64_t)NUM_COLS * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
-static void MERKLE_TREE_BENCH(benchmark::State &state)
+static void DISABLED_MERKLE_TREE_BENCH(benchmark::State &state)
 {
     // Test vector: Fibonacci series on the columns and increase the initial values to the right,
     // 1 2 3 4  5  6  ... NUM_COLS
@@ -222,7 +223,7 @@ static void MERKLE_TREE_BENCH(benchmark::State &state)
     state.counters["BytesProcessed"] = benchmark::Counter((uint64_t)NUM_ROWS * (uint64_t)NUM_COLS * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
-static void iNTT_BENCH(benchmark::State &state)
+static void DISABLED_iNTT_BENCH(benchmark::State &state)
 {
     uint64_t *pol = (uint64_t *)malloc(FFT_SIZE * sizeof(uint64_t));
     Goldilocks g(FFT_SIZE, state.range(0));
@@ -255,8 +256,8 @@ static void iNTT_BENCH(benchmark::State &state)
 static void LDE_BENCH(benchmark::State &state)
 {
     Goldilocks g(FFT_SIZE, state.range(0));
-    Goldilocks ge(FFT_SIZE * 2, state.range(0));
-    uint64_t *pol_ext = (uint64_t *)malloc(FFT_SIZE * 2 * sizeof(uint64_t));
+    Goldilocks ge(FFT_SIZE * BLOWUP_FACTOR, state.range(0));
+    uint64_t *pol_ext = (uint64_t *)malloc(FFT_SIZE * BLOWUP_FACTOR * sizeof(uint64_t));
 
     // Fibonacci
     pol_ext[0] = 0;
@@ -264,6 +265,10 @@ static void LDE_BENCH(benchmark::State &state)
     for (uint64_t i = 2; i < FFT_SIZE; i++)
     {
         pol_ext[i] = g.gl_add(pol_ext[i - 1], pol_ext[i - 2]);
+    }
+    for (uint64_t i = FFT_SIZE; i < FFT_SIZE * 4; i++)
+    {
+        pol_ext[i] = 0;
     }
 
     uint64_t r = 1;
@@ -276,14 +281,13 @@ static void LDE_BENCH(benchmark::State &state)
         for (uint64_t i = 0; i < NUM_COLS; i++)
         {
             g.intt(pol_ext, FFT_SIZE);
-
-            for (uint j = 0; j < FFT_SIZE; j++)
+            for (uint j = 0; j < FFT_SIZE * BLOWUP_FACTOR; j++)
             {
                 pol_ext[j] = g.gl_mmul(pol_ext[j], r);
                 r = g.gl_mmul(r, shift);
             }
 
-            ge.ntt(pol_ext, FFT_SIZE * 2);
+            ge.ntt(pol_ext, FFT_SIZE * BLOWUP_FACTOR);
         }
     }
 
@@ -298,7 +302,7 @@ static void LDE_BENCH(benchmark::State &state)
 // RangeMultiplier(2)->Range(2, omp_get_max_threads()) -> From 2 threads to omp_get_max_threads() every two
 // DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2) -> +/- 4 around the number of cores every two
 
-BENCHMARK(POSEIDON_BENCH)
+BENCHMARK(DISABLED_POSEIDON_BENCH)
     ->Unit(benchmark::kMicrosecond)
     ->DenseRange(1, 1, 1)
     ->RangeMultiplier(2)
@@ -306,23 +310,23 @@ BENCHMARK(POSEIDON_BENCH)
     ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->UseRealTime();
 
-BENCHMARK(LINEAR_HASH_SINGLE_BENCH)
+BENCHMARK(DISABLED_LINEAR_HASH_SINGLE_BENCH)
     ->Unit(benchmark::kMicrosecond)
     ->UseRealTime();
 
-BENCHMARK(LINEAR_HASH_BENCH)
+BENCHMARK(DISABLED_LINEAR_HASH_BENCH)
     ->Unit(benchmark::kSecond)
     ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)
     ->UseRealTime();
 
-BENCHMARK(MERKLE_TREE_BENCH)
+BENCHMARK(DISABLED_MERKLE_TREE_BENCH)
     ->Unit(benchmark::kSecond)
     ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)
     ->UseRealTime();
 
-BENCHMARK(iNTT_BENCH)
+BENCHMARK(DISABLED_iNTT_BENCH)
     ->Unit(benchmark::kSecond)
     ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)
