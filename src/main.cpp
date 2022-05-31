@@ -91,7 +91,7 @@ static void DISABLED_LINEAR_HASH_SINGLE_BENCH(benchmark::State &state)
     state.counters["BytesProcessed"] = benchmark::Counter(NUM_COLS * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
-static void LINEAR_HASH_BENCH(benchmark::State &state)
+static void DISABLED_LINEAR_HASH_BENCH(benchmark::State &state)
 {
     uint64_t *cols = (uint64_t *)malloc((uint64_t)NUM_COLS * (uint64_t)NUM_ROWS * sizeof(uint64_t));
 
@@ -147,7 +147,7 @@ static void LINEAR_HASH_BENCH(benchmark::State &state)
     state.counters["BytesProcessed"] = benchmark::Counter((uint64_t)NUM_ROWS * (uint64_t)NUM_COLS * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
-static void MERKLE_TREE_BENCH(benchmark::State &state)
+static void DISABLED_MERKLE_TREE_BENCH(benchmark::State &state)
 {
     // Test vector: Fibonacci series on the columns and increase the initial values to the right,
     // 1 2 3 4  5  6  ... NUM_COLS
@@ -223,7 +223,7 @@ static void MERKLE_TREE_BENCH(benchmark::State &state)
     state.counters["BytesProcessed"] = benchmark::Counter((uint64_t)NUM_ROWS * (uint64_t)NUM_COLS * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
-static void iNTT_BENCH(benchmark::State &state)
+static void DISABLED_iNTT_BENCH(benchmark::State &state)
 {
     uint64_t *pol = (uint64_t *)malloc(FFT_SIZE * sizeof(uint64_t));
     Goldilocks g(FFT_SIZE, state.range(0));
@@ -257,7 +257,7 @@ static void LDE_BENCH(benchmark::State &state)
 {
     Goldilocks g(FFT_SIZE, state.range(0));
     Goldilocks ge(FFT_SIZE * BLOWUP_FACTOR, state.range(0));
-    uint64_t *pol_ext = (uint64_t *)malloc(FFT_SIZE * BLOWUP_FACTOR * sizeof(uint64_t));
+    uint64_t *pol_ext = (uint64_t *)malloc((uint64_t)FFT_SIZE * (uint64_t)BLOWUP_FACTOR * sizeof(uint64_t));
 
     // Fibonacci
     pol_ext[0] = 0;
@@ -266,12 +266,12 @@ static void LDE_BENCH(benchmark::State &state)
     {
         pol_ext[i] = g.gl_add(pol_ext[i - 1], pol_ext[i - 2]);
     }
-    for (uint64_t i = FFT_SIZE; i < FFT_SIZE * 4; i++)
+    for (uint64_t i = FFT_SIZE; i < FFT_SIZE * BLOWUP_FACTOR; i++)
     {
         pol_ext[i] = 0;
     }
 
-    uint64_t r[FFT_SIZE * BLOWUP_FACTOR];
+    uint64_t *r = (uint64_t *)malloc((uint64_t)FFT_SIZE * (uint64_t)BLOWUP_FACTOR * sizeof(uint64_t));
     uint64_t shift = 7;
     r[0] = 1;
 
@@ -319,27 +319,27 @@ BENCHMARK(DISABLED_LINEAR_HASH_SINGLE_BENCH)
     ->Unit(benchmark::kMicrosecond)
     ->UseRealTime();
 
-BENCHMARK(LINEAR_HASH_BENCH)
+BENCHMARK(DISABLED_LINEAR_HASH_BENCH)
     ->Unit(benchmark::kSecond)
-//    ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
+    //    ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)
     ->UseRealTime();
 
-BENCHMARK(MERKLE_TREE_BENCH)
+BENCHMARK(DISABLED_MERKLE_TREE_BENCH)
     ->Unit(benchmark::kSecond)
-//    ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
+    //    ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)
     ->UseRealTime();
 
-BENCHMARK(iNTT_BENCH)
+BENCHMARK(DISABLED_iNTT_BENCH)
     ->Unit(benchmark::kSecond)
-//    ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
+    //    ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)
     ->UseRealTime();
 
 BENCHMARK(LDE_BENCH)
     ->Unit(benchmark::kSecond)
-//    ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
+    //    ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)
     ->UseRealTime();
 
