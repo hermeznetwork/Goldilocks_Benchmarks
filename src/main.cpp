@@ -257,18 +257,19 @@ static void LDE_BENCH(benchmark::State &state)
 {
     Goldilocks g(FFT_SIZE, state.range(0));
     Goldilocks ge(FFT_SIZE * BLOWUP_FACTOR, state.range(0));
+    uint64_t *pol_ext_intt = (uint64_t *)malloc((uint64_t)FFT_SIZE * (uint64_t)BLOWUP_FACTOR * sizeof(uint64_t));
     uint64_t *pol_ext = (uint64_t *)malloc((uint64_t)FFT_SIZE * (uint64_t)BLOWUP_FACTOR * sizeof(uint64_t));
 
     // Fibonacci
-    pol_ext[0] = 0;
-    pol_ext[1] = 1;
+    pol_ext_intt[0] = 0;
+    pol_ext_intt[1] = 1;
     for (uint64_t i = 2; i < FFT_SIZE; i++)
     {
-        pol_ext[i] = g.gl_add(pol_ext[i - 1], pol_ext[i - 2]);
+        pol_ext_intt[i] = g.gl_add(pol_ext_intt[i - 1], pol_ext_intt[i - 2]);
     }
     for (uint64_t i = FFT_SIZE; i < FFT_SIZE * BLOWUP_FACTOR; i++)
     {
-        pol_ext[i] = 0;
+        pol_ext_intt[i] = 0;
     }
 
     uint64_t *r = (uint64_t *)malloc((uint64_t)FFT_SIZE * (uint64_t)BLOWUP_FACTOR * sizeof(uint64_t));
@@ -280,13 +281,15 @@ static void LDE_BENCH(benchmark::State &state)
         r[j] = g.gl_mmul(r[j - 1], shift);
     }
 
+    g.intt(pol_ext_intt, FFT_SIZE);
+
     // Benchmark
     for (auto _ : state)
     {
+        std::memcpy(pol_ext, pol_ext_intt, (uint64_t)FFT_SIZE * (uint64_t)BLOWUP_FACTOR * sizeof(uint64_t));
+
         for (uint64_t i = 0; i < NUM_COLS; i++)
         {
-            g.intt(pol_ext, FFT_SIZE);
-
             for (uint j = 0; j < FFT_SIZE * BLOWUP_FACTOR; j++)
             {
                 pol_ext[j] = g.gl_mmul(pol_ext[j], r[j]);
