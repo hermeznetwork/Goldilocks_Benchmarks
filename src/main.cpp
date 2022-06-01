@@ -223,37 +223,44 @@ static void DISABLED_MERKLE_TREE_BENCH(benchmark::State &state)
     state.counters["BytesProcessed"] = benchmark::Counter((uint64_t)NUM_ROWS * (uint64_t)NUM_COLS * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
-static void DISABLED_iNTT_BENCH(benchmark::State &state)
+static void iNTT_BENCH(benchmark::State &state)
 {
-    uint64_t *pol = (uint64_t *)malloc(FFT_SIZE * sizeof(uint64_t));
+    uint64_t *cols = (uint64_t *)malloc((uint64_t)NUM_COLS * (uint64_t)FFT_SIZE * sizeof(uint64_t));
     Goldilocks g(FFT_SIZE, state.range(0));
+    // Test vector: Fibonacci series on the columns and increase the initial values to the right,
+    // 1 2 3 4  5  6  ... NUM_COLS
+    // 1 2 3 4  5  6  ... NUM_COLS
+    // 2 4 6 8  10 12 ... NUM_COLS + NUM_COLS
+    // 3 6 9 12 15 18 ... NUM_COLS + NUM_COLS + NUM_COLS
 
-    // Fibonacci
-    pol[0] = 0;
-    pol[1] = 1;
-    for (uint64_t i = 2; i < FFT_SIZE; i++)
+    for (uint64_t j = 0; j < NUM_COLS; j++)
     {
-        pol[i] = g.gl_add(pol[i - 1], pol[i - 2]);
+        uint64_t offset = j * FFT_SIZE;
+        cols[offset] = j + 1;
+        cols[offset + 1] = j + 1;
+
+        for (uint64_t i = 2; i < FFT_SIZE; i++)
+        {
+            cols[i + offset] = Goldilocks::gl_add(cols[(i - 2) + offset], cols[(i - 1) + offset]);
+        }
     }
 
     // Benchmark
     for (auto _ : state)
     {
-#pragma omp barrier
 #pragma omp parallel for num_threads(state.range(0))
         for (uint64_t i = 0; i < NUM_COLS; i++)
         {
-            g.intt(pol, FFT_SIZE);
+            g.intt(&cols[i * FFT_SIZE], FFT_SIZE);
         }
-#pragma omp barrier
     }
 
-    free(pol);
+    free(cols);
     state.counters["Rate"] = benchmark::Counter((float)NUM_COLS / state.range(0), benchmark::Counter::kIsIterationInvariantRate | benchmark::Counter::kInvert);
     state.counters["BytesProcessed"] = benchmark::Counter((uint64_t)FFT_SIZE * (uint64_t)NUM_COLS * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
-static void LDE_BENCH(benchmark::State &state)
+static void DISABLED_LDE_BENCH(benchmark::State &state)
 {
     Goldilocks g(FFT_SIZE, state.range(0));
     Goldilocks ge(FFT_SIZE * BLOWUP_FACTOR, state.range(0));
@@ -334,13 +341,14 @@ BENCHMARK(DISABLED_MERKLE_TREE_BENCH)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)
     ->UseRealTime();
 
-BENCHMARK(DISABLED_iNTT_BENCH)
+BENCHMARK(iNTT_BENCH)
     ->Unit(benchmark::kSecond)
-    //    ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
+    ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)
-    ->UseRealTime();
+    ->UseRealTime()
+    ->Iterations(1);
 
-BENCHMARK(LDE_BENCH)
+BENCHMARK(DISABLED_LDE_BENCH)
     ->Unit(benchmark::kSecond)
     //    ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)
