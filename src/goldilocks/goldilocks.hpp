@@ -7,7 +7,7 @@
 #include <iostream>
 #include <cassert>
 #include <gmp.h>
-#include "poseidon_goldilocks_opt_constants.hpp"
+
 
 #define SPONGE_WIDTH 12
 #define GOLDILOCKS_PRIME 0xFFFFFFFF00000001ULL
@@ -20,7 +20,7 @@
 #define N_ROUNDS (N_FULL_ROUNDS_TOTAL + N_PARTIAL_ROUNDS)
 #define RATE 8
 #define CAPACITY 4
-#define ASM 1
+#define ASM 0
 
 #define CACHESIZE 1 << 18
 
@@ -40,6 +40,25 @@ private:
     uint64_t *roots;
     uint64_t *powTwoInv;
     u_int32_t nThreads;
+
+    // Naive Poseidon implementation
+    void static full_rounds_naive(uint64_t (&state)[SPONGE_WIDTH], uint8_t &round_ctr);
+    void static constant_layer_naive(uint64_t (&state)[SPONGE_WIDTH], uint8_t &round_ctr);
+    void static sbox_layer_naive(uint64_t (&state)[SPONGE_WIDTH]);
+    void static sbox_monomial_naive(uint64_t &x);
+    void static mds_layer_naive(uint64_t (&state)[SPONGE_WIDTH]);
+    uint64_t static mds_row_shf_naive(uint64_t r, uint64_t (&v)[SPONGE_WIDTH]);
+    void static partial_rounds_naive(uint64_t (&state)[SPONGE_WIDTH], uint8_t &round_ctr);
+
+    inline static uint64_t add_gl(uint64_t in1, uint64_t in2)
+    {
+        uint64_t res = 0;
+        if (__builtin_add_overflow(in1, in2, &res))
+        {
+            res += CQ;
+        }
+        return res;
+    }
 
 public:
     Goldilocks(u_int64_t maxDomainSize, u_int32_t _nThreads = 0)
@@ -126,14 +145,6 @@ public:
         mpz_clear(m_nqr);
         mpz_clear(m_aux);
     };
-    void ntt(u_int64_t *a, u_int64_t n);
-    void reversePermutation(u_int64_t *dst, u_int64_t *a, u_int64_t n);
-    void static hash(uint64_t (&input)[SPONGE_WIDTH]);
-    void static linear_hash(uint64_t *output, uint64_t *input, uint64_t size);
-
-    u_int32_t log2(u_int64_t n);
-
-    void printVector(u_int64_t *a, u_int64_t n);
 
     inline static uint64_t gl_mul(uint64_t a, uint64_t b)
     {
@@ -287,6 +298,16 @@ public:
         x = (x3 * x4) % GOLDILOCKS_PRIME;
 #endif
     };
+
+    void ntt(u_int64_t *a, u_int64_t n);
+    void reversePermutation(u_int64_t *dst, u_int64_t *a, u_int64_t n);
+    void static poseidon(uint64_t (&input)[SPONGE_WIDTH]);
+    void static linear_hash(uint64_t *output, uint64_t *input, uint64_t size);
+    void static poseidon_naive(uint64_t (&input)[SPONGE_WIDTH]);
+
+    u_int32_t log2(u_int64_t n);
+
+    void printVector(u_int64_t *a, u_int64_t n);
 
     inline uint64_t &root(u_int32_t domainPow, u_int64_t idx)
     {

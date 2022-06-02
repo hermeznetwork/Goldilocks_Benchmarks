@@ -15,7 +15,7 @@
 #define RATE 8
 #define CAPACITY 4
 
-static void DISABLED_POSEIDON_BENCH(benchmark::State &state)
+static void POSEIDON_BENCH(benchmark::State &state)
 {
     uint64_t input_size = NUM_HASHES * SPONGE_WIDTH;
 
@@ -41,7 +41,50 @@ static void DISABLED_POSEIDON_BENCH(benchmark::State &state)
         {
             uint64_t pol_input_t[SPONGE_WIDTH];
             std::memcpy(pol_input_t, &fibonacci[i * SPONGE_WIDTH], SPONGE_WIDTH * sizeof(uint64_t));
-            Goldilocks::hash(pol_input_t);
+            Goldilocks::poseidon(pol_input_t);
+            std::memcpy(&pol_output[i * SPONGE_WIDTH], &pol_input_t[0], SPONGE_WIDTH * sizeof(uint64_t));
+        }
+#pragma omp barrier
+    }
+    // Check poseidon results poseidon ( 0 1 1 2 3 5 8 13 21 34 55 89 )
+    assert(pol_output[0] == 0x3095570037f4605d);
+    assert(pol_output[1] == 0x3d561b5ef1bc8b58);
+    assert(pol_output[2] == 0x8129db5ec75c3226);
+    assert(pol_output[3] == 0x8ec2b67afb6b87ed);
+
+    // Rate = time to process 1 posseidon per thread
+    // BytesProcessed = total bytes processed per second on every iteration
+    state.counters["Rate"] = benchmark::Counter((double)NUM_HASHES / (double)state.range(0), benchmark::Counter::kIsIterationInvariantRate | benchmark::Counter::kInvert);
+    state.counters["BytesProcessed"] = benchmark::Counter(input_size * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
+}
+
+static void POSEIDON_NAIVE_BENCH(benchmark::State &state)
+{
+    uint64_t input_size = NUM_HASHES * SPONGE_WIDTH;
+
+    uint64_t fibonacci[input_size];
+    uint64_t pol_output[input_size];
+
+    // Test vector: Fibonacci series
+    // 0 1 1 2 3 5 8 13 ... NUM_HASHES * SPONGE_WIDTH ...
+    fibonacci[0] = 0;
+    fibonacci[1] = 1;
+    for (uint64_t i = 2; i < input_size; i++)
+    {
+        fibonacci[i] = Goldilocks::gl_add(fibonacci[i - 1], fibonacci[i - 2]);
+    }
+
+    // Benchmark
+    for (auto _ : state)
+    {
+#pragma omp barrier
+// Every thread process chunks of SPONGE_WIDTH elements
+#pragma omp parallel for num_threads(state.range(0))
+        for (uint64_t i = 0; i < NUM_HASHES; i++)
+        {
+            uint64_t pol_input_t[SPONGE_WIDTH];
+            std::memcpy(pol_input_t, &fibonacci[i * SPONGE_WIDTH], SPONGE_WIDTH * sizeof(uint64_t));
+            Goldilocks::poseidon_naive(pol_input_t);
             std::memcpy(&pol_output[i * SPONGE_WIDTH], &pol_input_t[0], SPONGE_WIDTH * sizeof(uint64_t));
         }
 #pragma omp barrier
@@ -199,7 +242,7 @@ static void DISABLED_MERKLE_TREE_BENCH(benchmark::State &state)
                 std::memcpy(pol_input, &result[j * CAPACITY], CAPACITY * sizeof(uint64_t));
                 std::memcpy(&pol_input[CAPACITY], &result[(j + (NUM_ROWS / pending)) * CAPACITY], CAPACITY * sizeof(uint64_t));
 
-                Goldilocks::hash(pol_input);
+                Goldilocks::poseidon(pol_input);
                 std::memcpy(&result[j * CAPACITY], pol_input, CAPACITY * sizeof(uint64_t));
             }
             pending = pending / 2;
@@ -223,7 +266,7 @@ static void DISABLED_MERKLE_TREE_BENCH(benchmark::State &state)
     state.counters["BytesProcessed"] = benchmark::Counter((uint64_t)NUM_ROWS * (uint64_t)NUM_COLS * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
-static void iNTT_BENCH(benchmark::State &state)
+static void DISABLED_iNTT_BENCH(benchmark::State &state)
 {
     uint64_t *cols = (uint64_t *)malloc((uint64_t)NUM_COLS * (uint64_t)FFT_SIZE * sizeof(uint64_t));
     Goldilocks g(FFT_SIZE, state.range(0));
@@ -317,7 +360,7 @@ static void DISABLED_LDE_BENCH(benchmark::State &state)
 // RangeMultiplier(2)->Range(2, omp_get_max_threads()) -> From 2 threads to omp_get_max_threads() every two
 // DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2) -> +/- 4 around the number of cores every two
 
-BENCHMARK(DISABLED_POSEIDON_BENCH)
+BENCHMARK(POSEIDON_BENCH)
     ->Unit(benchmark::kMicrosecond)
     ->DenseRange(1, 1, 1)
     ->RangeMultiplier(2)
@@ -325,6 +368,13 @@ BENCHMARK(DISABLED_POSEIDON_BENCH)
     ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->UseRealTime();
 
+BENCHMARK(POSEIDON_NAIVE_BENCH)
+    ->Unit(benchmark::kMicrosecond)
+    ->DenseRange(1, 1, 1)
+    ->RangeMultiplier(2)
+    ->Range(2, omp_get_max_threads())
+    ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
+    ->UseRealTime();
 BENCHMARK(DISABLED_LINEAR_HASH_SINGLE_BENCH)
     ->Unit(benchmark::kMicrosecond)
     ->UseRealTime();
@@ -341,7 +391,7 @@ BENCHMARK(DISABLED_MERKLE_TREE_BENCH)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)
     ->UseRealTime();
 
-BENCHMARK(iNTT_BENCH)
+BENCHMARK(DISABLED_iNTT_BENCH)
     ->Unit(benchmark::kSecond)
     ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)

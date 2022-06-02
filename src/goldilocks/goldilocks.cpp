@@ -1,5 +1,7 @@
 #include "goldilocks.hpp"
 #include <cstring> //memset
+#include "poseidon_goldilocks_constants.hpp"
+#include "poseidon_goldilocks_opt_constants.hpp"
 
 const uint64_t Goldilocks::Q = 0xFFFFFFFF00000001LL;
 const uint64_t Goldilocks::MM = 0xFFFFFFFeFFFFFFFFLL;
@@ -189,7 +191,7 @@ u_int32_t Goldilocks::log2(u_int64_t n)
     return res;
 }
 
-void Goldilocks::hash(uint64_t (&state)[SPONGE_WIDTH])
+void Goldilocks::poseidon(uint64_t (&state)[SPONGE_WIDTH])
 {
 #if ASM == 1
     for (int i = 0; i < SPONGE_WIDTH; i++)
@@ -415,9 +417,125 @@ void Goldilocks::linear_hash(uint64_t *output, uint64_t *input, uint64_t size)
         }
         std::memcpy(state, input + (size - remaining), n * sizeof(uint64_t));
 
-        hash(state);
+        poseidon(state);
 
         remaining -= n;
     }
     std::memcpy(output, state, 4 * sizeof(uint64_t));
+}
+
+/// Naive Poseidon Implementation
+
+void Goldilocks::poseidon_naive(uint64_t (&state)[SPONGE_WIDTH])
+{
+#if ASM == 1
+    for (int i = 0; i < SPONGE_WIDTH; i++)
+    {
+        state[i] = gl_tom(state[i]);
+    }
+#endif
+    uint8_t round_ctr = 0;
+    full_rounds_naive(state, round_ctr);
+    partial_rounds_naive(state, round_ctr);
+    full_rounds_naive(state, round_ctr);
+#if ASM == 1
+    for (int i = 0; i < SPONGE_WIDTH; i++)
+    {
+        state[i] = gl_fromm(state[i]);
+    }
+#endif
+}
+
+inline void Goldilocks::full_rounds_naive(uint64_t (&state)[SPONGE_WIDTH], uint8_t &round_ctr)
+{
+    for (uint8_t i = 0; i < HALF_N_FULL_ROUNDS; i++)
+    {
+        constant_layer_naive(state, round_ctr);
+        sbox_layer_naive(state);
+        mds_layer_naive(state);
+        round_ctr += 1;
+    }
+}
+
+void Goldilocks::constant_layer_naive(uint64_t (&state)[SPONGE_WIDTH], uint8_t &round_ctr)
+{
+    for (uint8_t i = 0; i < SPONGE_WIDTH; i++)
+    {
+#if ASM == 1
+        state[i] = gl_add(state[i], Poseidon_goldilocks_constants::ALL_ROUND_CONSTANTS[i + SPONGE_WIDTH * round_ctr]);
+#else
+        state[i] = add_gl(state[i], Poseidon_goldilocks_constants::ALL_ROUND_CONSTANTS[i + SPONGE_WIDTH * round_ctr]);
+        // state[i] = ((uint128_t)state[i] + (uint128_t)Poseidon_goldilocks_constants::ALL_ROUND_CONSTANTS[i + SPONGE_WIDTH * round_ctr]) % GOLDILOCKS_PRIME;
+#endif
+    }
+}
+
+void Goldilocks::sbox_layer_naive(uint64_t (&state)[SPONGE_WIDTH])
+{
+    for (uint8_t i = 0; i < SPONGE_WIDTH; i++)
+    {
+        sbox_monomial_naive(state[i]);
+    }
+}
+
+void Goldilocks::sbox_monomial_naive(uint64_t &x)
+{
+#if ASM == 1
+    uint64_t x2 = gl_mmul(x, x);
+    uint64_t x3 = gl_mmul(x, x2);
+    uint64_t x4 = gl_mmul(x2, x2);
+
+    x = gl_mmul(x3, x4);
+#else
+    uint128_t x2 = ((uint128_t)x * (uint128_t)x) % GOLDILOCKS_PRIME;
+    uint128_t x4 = (x2 * x2) % GOLDILOCKS_PRIME;
+    uint128_t x3 = ((uint128_t)x * x2) % GOLDILOCKS_PRIME;
+    x = (x3 * x4) % GOLDILOCKS_PRIME;
+#endif
+}
+
+void Goldilocks::mds_layer_naive(uint64_t (&state_)[SPONGE_WIDTH])
+{
+    uint64_t state[SPONGE_WIDTH] = {0};
+    std::memcpy(state, state_, SPONGE_WIDTH * sizeof(uint64_t));
+
+    for (uint8_t r = 0; r < SPONGE_WIDTH; r++)
+    {
+        state_[r] = mds_row_shf_naive(r, state);
+    }
+}
+
+uint64_t Goldilocks::mds_row_shf_naive(uint64_t r, uint64_t (&v)[SPONGE_WIDTH])
+{
+
+#if ASM == 1
+    uint64_t res = 0;
+    res = gl_mmul(v[r], Poseidon_goldilocks_constants::MDS_MATRIX_DIAG[r]);
+
+    for (uint8_t i = 0; i < SPONGE_WIDTH; i++)
+    {
+        res = gl_add(res, gl_mmul(v[(i + r) % SPONGE_WIDTH], Poseidon_goldilocks_constants::MDS_MATRIX_CIRC[i]));
+    }
+    return res;
+#else
+    uint128_t res = 0;
+    res += (uint128_t)v[r] * (uint128_t)Poseidon_goldilocks_constants::MDS_MATRIX_DIAG[r];
+
+    for (uint8_t i = 0; i < SPONGE_WIDTH; i++)
+    {
+        res += (((uint128_t)v[(i + r) % SPONGE_WIDTH] * (uint128_t)Poseidon_goldilocks_constants::MDS_MATRIX_CIRC[i]));
+    }
+    return res % GOLDILOCKS_PRIME;
+#endif
+}
+
+void Goldilocks::partial_rounds_naive(uint64_t (&state)[SPONGE_WIDTH], uint8_t &round_ctr)
+{
+    for (uint8_t i = 0; i < N_PARTIAL_ROUNDS; i++)
+    {
+        constant_layer_naive(state, round_ctr);
+        sbox_monomial_naive(state[0]);
+        mds_layer_naive(state);
+        round_ctr += 1;
+    }
 }
