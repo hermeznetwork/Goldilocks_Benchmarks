@@ -1,4 +1,7 @@
 #include "goldilocks.hpp"
+#include <cstring> //memset
+#include "poseidon_goldilocks_constants.hpp"
+#include "poseidon_goldilocks_opt_constants.hpp"
 
 const uint64_t Goldilocks::Q = 0xFFFFFFFF00000001LL;
 const uint64_t Goldilocks::MM = 0xFFFFFFFeFFFFFFFFLL;
@@ -186,4 +189,353 @@ u_int32_t Goldilocks::log2(u_int64_t n)
         res++;
     }
     return res;
+}
+
+void Goldilocks::poseidon(uint64_t (&state)[SPONGE_WIDTH])
+{
+#if ASM == 1
+    for (int i = 0; i < SPONGE_WIDTH; i++)
+    {
+        state[i] = Goldilocks::gl_tom(state[i]);
+    }
+#endif
+
+    for (int i = 0; i < SPONGE_WIDTH; i++)
+    {
+#if ASM == 1
+        state[i] = Goldilocks::gl_add(state[i], Poseidon_goldilocks_opt_constants::C[i]);
+#else
+        // state[i] = (state[i] + Poseidon_goldilocks_opt_constants::C[i]) % GOLDILOCKS_PRIME;
+        state[i] = add_gl(state[i], Poseidon_goldilocks_opt_constants::C[i]);
+#endif
+    }
+
+    for (int r = 0; r < HALF_N_FULL_ROUNDS - 1; r++)
+    {
+
+        for (int j = 0; j < SPONGE_WIDTH; j++)
+        {
+            pow7(state[j]);
+#if ASM == 1
+            state[j] = Goldilocks::gl_add(state[j], Poseidon_goldilocks_opt_constants::C[(r + 1) * SPONGE_WIDTH + j]);
+#else
+            // state[j] = ((uint128_t)state[j] + (uint128_t)Poseidon_goldilocks_opt_constants::C[(r + 1) * SPONGE_WIDTH + j]) % GOLDILOCKS_PRIME;
+            state[j] = add_gl(state[j], Poseidon_goldilocks_opt_constants::C[(r + 1) * SPONGE_WIDTH + j]);
+#endif
+        }
+
+        uint64_t old_state[SPONGE_WIDTH];
+        std::memcpy(&old_state, &state, sizeof(uint64_t) * SPONGE_WIDTH);
+
+        for (int i = 0; i < SPONGE_WIDTH; i++)
+        {
+            state[i] = 0;
+            for (int j = 0; j < SPONGE_WIDTH; j++)
+            {
+#if ASM == 1
+                uint64_t mji = Poseidon_goldilocks_opt_constants::M[j][i];
+                mji = Goldilocks::gl_mmul(mji, old_state[j]);
+                state[i] = Goldilocks::gl_add(state[i], mji);
+#else
+                uint64_t mji = Poseidon_goldilocks_opt_constants::M[j][i];
+                mji = ((uint128_t)mji * (uint128_t)old_state[j]) % GOLDILOCKS_PRIME;
+                state[i] = add_gl(state[i], mji);
+                // state[i] = ((uint128_t)state[i] + (uint128_t)mji) % GOLDILOCKS_PRIME;
+#endif
+            }
+        }
+    }
+
+    for (int j = 0; j < SPONGE_WIDTH; j++)
+    {
+        pow7(state[j]);
+#if ASM == 1
+        state[j] = Goldilocks::gl_add(state[j], Poseidon_goldilocks_opt_constants::C[j + (HALF_N_FULL_ROUNDS * SPONGE_WIDTH)]);
+#else
+        // state[j] = ((uint128_t)state[j] + (uint128_t)Poseidon_goldilocks_opt_constants::C[j + (HALF_N_FULL_ROUNDS * SPONGE_WIDTH)]) % GOLDILOCKS_PRIME;
+        state[j] = add_gl(state[j], Poseidon_goldilocks_opt_constants::C[j + (HALF_N_FULL_ROUNDS * SPONGE_WIDTH)]);
+
+#endif
+    }
+
+    uint64_t old_state[SPONGE_WIDTH];
+    std::memcpy(&old_state, &state, sizeof(uint64_t) * SPONGE_WIDTH);
+    for (int i = 0; i < SPONGE_WIDTH; i++)
+    {
+        state[i] = 0;
+        for (int j = 0; j < SPONGE_WIDTH; j++)
+        {
+#if ASM == 1
+            uint64_t mji = Poseidon_goldilocks_opt_constants::P[j][i];
+            mji = Goldilocks::gl_mmul(mji, old_state[j]);
+            state[i] = Goldilocks::gl_add(state[i], mji);
+#else
+            uint64_t mji = Poseidon_goldilocks_opt_constants::P[j][i];
+            mji = ((uint128_t)mji * (uint128_t)old_state[j]) % GOLDILOCKS_PRIME;
+            state[i] = add_gl(state[i], mji);
+#endif
+        }
+    }
+
+    for (int r = 0; r < N_PARTIAL_ROUNDS; r++)
+    {
+        pow7(state[0]);
+#if ASM == 1
+        state[0] = Goldilocks::gl_add(state[0], Poseidon_goldilocks_opt_constants::C[(HALF_N_FULL_ROUNDS + 1) * SPONGE_WIDTH + r]);
+#else
+        state[0] = add_gl(state[0], Poseidon_goldilocks_opt_constants::C[(HALF_N_FULL_ROUNDS + 1) * SPONGE_WIDTH + r]);
+        // state[0] = ((uint128_t)state[0] + (uint128_t)Poseidon_goldilocks_opt_constants::C[(HALF_N_FULL_ROUNDS + 1) * SPONGE_WIDTH + r]) % GOLDILOCKS_PRIME;
+#endif
+        uint64_t s0 = 0;
+
+        uint64_t accumulator1 = Poseidon_goldilocks_opt_constants::S[(SPONGE_WIDTH * 2 - 1) * r];
+        accumulator1 = Goldilocks::gl_mmul(accumulator1, state[0]);
+        s0 = Goldilocks::gl_add(s0, accumulator1);
+
+        for (int j = 1; j < SPONGE_WIDTH; j++)
+        {
+#if ASM == 1
+            uint64_t accumulator1 = Poseidon_goldilocks_opt_constants::S[(SPONGE_WIDTH * 2 - 1) * r + j];
+            accumulator1 = Goldilocks::gl_mmul(accumulator1, state[j]);
+            s0 = Goldilocks::gl_add(s0, accumulator1);
+
+            uint64_t accumulator2 = Poseidon_goldilocks_opt_constants::S[(SPONGE_WIDTH * 2 - 1) * r + SPONGE_WIDTH + j - 1];
+            accumulator2 = Goldilocks::gl_mmul(accumulator2, state[0]);
+            state[j] = Goldilocks::gl_add(state[j], accumulator2);
+
+#else
+            uint64_t accumulator1 = Poseidon_goldilocks_opt_constants::S[(SPONGE_WIDTH * 2 - 1) * r + j];
+            accumulator1 = ((uint128_t)accumulator1 * (uint128_t)state[j]) % GOLDILOCKS_PRIME;
+            // s0 = ((uint128_t)s0 + (uint128_t)accumulator1) % GOLDILOCKS_PRIME;
+            s0 = add_gl(s0, accumulator1);
+
+            if (j > 0)
+            {
+                uint64_t accumulator2 = Poseidon_goldilocks_opt_constants::S[(SPONGE_WIDTH * 2 - 1) * r + SPONGE_WIDTH + j - 1];
+                accumulator2 = ((uint128_t)accumulator2 * (uint128_t)state[0]) % GOLDILOCKS_PRIME;
+                // state[j] = ((uint128_t)state[j] + (uint128_t)accumulator2) % GOLDILOCKS_PRIME;
+                state[j] = add_gl(state[j], accumulator2);
+            }
+#endif
+        }
+        state[0] = s0;
+    }
+    for (int r = 0; r < HALF_N_FULL_ROUNDS - 1; r++)
+    {
+        for (int j = 0; j < SPONGE_WIDTH; j++)
+        {
+            pow7(state[j]);
+
+#if ASM == 1
+            state[j] = Goldilocks::gl_add(state[j], Poseidon_goldilocks_opt_constants::C[j + (HALF_N_FULL_ROUNDS + 1) * SPONGE_WIDTH + N_PARTIAL_ROUNDS + r * SPONGE_WIDTH]);
+#else
+            // state[j] = ((uint128_t)state[j] + (uint128_t)Poseidon_goldilocks_opt_constants::C[j + (HALF_N_FULL_ROUNDS + 1) * SPONGE_WIDTH + N_PARTIAL_ROUNDS + r * SPONGE_WIDTH]) % GOLDILOCKS_PRIME;
+            state[j] = add_gl(state[j], Poseidon_goldilocks_opt_constants::C[j + (HALF_N_FULL_ROUNDS + 1) * SPONGE_WIDTH + N_PARTIAL_ROUNDS + r * SPONGE_WIDTH]);
+
+#endif
+        }
+
+        uint64_t old_state[SPONGE_WIDTH];
+        std::memcpy(&old_state, &state, sizeof(uint64_t) * SPONGE_WIDTH);
+
+        for (int i = 0; i < SPONGE_WIDTH; i++)
+        {
+            state[i] = 0;
+            for (int j = 0; j < SPONGE_WIDTH; j++)
+            {
+
+#if ASM == 1
+                uint64_t mji = Poseidon_goldilocks_opt_constants::M[j][i];
+                mji = Goldilocks::gl_mmul(mji, old_state[j]);
+                state[i] = Goldilocks::gl_add(state[i], mji);
+#else
+                uint64_t mji = Poseidon_goldilocks_opt_constants::M[j][i];
+                mji = ((uint128_t)mji * (uint128_t)old_state[j]) % GOLDILOCKS_PRIME;
+                // state[i] = ((uint128_t)state[i] + (uint128_t)mji) % GOLDILOCKS_PRIME;
+                state[i] = add_gl(state[i], mji);
+#endif
+            }
+        }
+    }
+
+    for (int j = 0; j < SPONGE_WIDTH; j++)
+    {
+        pow7(state[j]);
+    }
+
+    std::memcpy(&old_state, &state, sizeof(uint64_t) * SPONGE_WIDTH);
+
+    for (int i = 0; i < SPONGE_WIDTH; i++)
+    {
+        state[i] = 0;
+        for (int j = 0; j < SPONGE_WIDTH; j++)
+        {
+#if ASM == 1
+            uint64_t mji = Poseidon_goldilocks_opt_constants::M[j][i];
+            mji = Goldilocks::gl_mmul(mji, old_state[j]);
+            state[i] = Goldilocks::gl_add(state[i], mji);
+#else
+            uint64_t mji = Poseidon_goldilocks_opt_constants::M[j][i];
+            mji = ((uint128_t)mji * (uint128_t)old_state[j]) % GOLDILOCKS_PRIME;
+            // state[i] = ((uint128_t)state[i] + (uint128_t)mji) % GOLDILOCKS_PRIME;
+            state[i] = add_gl(state[i], mji);
+
+#endif
+        }
+    }
+#if ASM == 1
+    for (int i = 0; i < SPONGE_WIDTH; i++)
+    {
+        state[i] = Goldilocks::gl_fromm(state[i]);
+    }
+#endif
+}
+
+void Goldilocks::linear_hash(uint64_t *output, uint64_t *input, uint64_t size)
+{
+    uint64_t remaining = size;
+    uint64_t state[SPONGE_WIDTH] = {0};
+
+    while (remaining)
+    {
+        if (remaining == size)
+        {
+            memset(state + RATE, 0, CAPACITY * sizeof(uint64_t));
+        }
+        else
+        {
+            std::memcpy(state + RATE, state, CAPACITY * sizeof(uint64_t));
+        }
+
+        uint64_t n = (remaining < RATE) ? remaining : RATE;
+
+        std::memcpy(state, input + (size - remaining), n * sizeof(uint64_t));
+
+        for (int i = n; i < RATE; i++)
+        {
+            state[i] = 0;
+        }
+        std::memcpy(state, input + (size - remaining), n * sizeof(uint64_t));
+
+        poseidon(state);
+
+        remaining -= n;
+    }
+    std::memcpy(output, state, 4 * sizeof(uint64_t));
+}
+
+/// Naive Poseidon Implementation
+
+void Goldilocks::poseidon_naive(uint64_t (&state)[SPONGE_WIDTH])
+{
+#if ASM == 1
+    for (int i = 0; i < SPONGE_WIDTH; i++)
+    {
+        state[i] = gl_tom(state[i]);
+    }
+#endif
+    uint8_t round_ctr = 0;
+    full_rounds_naive(state, round_ctr);
+    partial_rounds_naive(state, round_ctr);
+    full_rounds_naive(state, round_ctr);
+#if ASM == 1
+    for (int i = 0; i < SPONGE_WIDTH; i++)
+    {
+        state[i] = gl_fromm(state[i]);
+    }
+#endif
+}
+
+inline void Goldilocks::full_rounds_naive(uint64_t (&state)[SPONGE_WIDTH], uint8_t &round_ctr)
+{
+    for (uint8_t i = 0; i < HALF_N_FULL_ROUNDS; i++)
+    {
+        constant_layer_naive(state, round_ctr);
+        sbox_layer_naive(state);
+        mds_layer_naive(state);
+        round_ctr += 1;
+    }
+}
+
+void Goldilocks::constant_layer_naive(uint64_t (&state)[SPONGE_WIDTH], uint8_t &round_ctr)
+{
+    for (uint8_t i = 0; i < SPONGE_WIDTH; i++)
+    {
+#if ASM == 1
+        state[i] = gl_add(state[i], Poseidon_goldilocks_constants::ALL_ROUND_CONSTANTS[i + SPONGE_WIDTH * round_ctr]);
+#else
+        state[i] = add_gl(state[i], Poseidon_goldilocks_constants::ALL_ROUND_CONSTANTS[i + SPONGE_WIDTH * round_ctr]);
+        // state[i] = ((uint128_t)state[i] + (uint128_t)Poseidon_goldilocks_constants::ALL_ROUND_CONSTANTS[i + SPONGE_WIDTH * round_ctr]) % GOLDILOCKS_PRIME;
+#endif
+    }
+}
+
+void Goldilocks::sbox_layer_naive(uint64_t (&state)[SPONGE_WIDTH])
+{
+    for (uint8_t i = 0; i < SPONGE_WIDTH; i++)
+    {
+        sbox_monomial_naive(state[i]);
+    }
+}
+
+void Goldilocks::sbox_monomial_naive(uint64_t &x)
+{
+#if ASM == 1
+    uint64_t x2 = gl_mmul(x, x);
+    uint64_t x3 = gl_mmul(x, x2);
+    uint64_t x4 = gl_mmul(x2, x2);
+
+    x = gl_mmul(x3, x4);
+#else
+    uint128_t x2 = ((uint128_t)x * (uint128_t)x) % GOLDILOCKS_PRIME;
+    uint128_t x4 = (x2 * x2) % GOLDILOCKS_PRIME;
+    uint128_t x3 = ((uint128_t)x * x2) % GOLDILOCKS_PRIME;
+    x = (x3 * x4) % GOLDILOCKS_PRIME;
+#endif
+}
+
+void Goldilocks::mds_layer_naive(uint64_t (&state_)[SPONGE_WIDTH])
+{
+    uint64_t state[SPONGE_WIDTH] = {0};
+    std::memcpy(state, state_, SPONGE_WIDTH * sizeof(uint64_t));
+
+    for (uint8_t r = 0; r < SPONGE_WIDTH; r++)
+    {
+        state_[r] = mds_row_shf_naive(r, state);
+    }
+}
+
+uint64_t Goldilocks::mds_row_shf_naive(uint64_t r, uint64_t (&v)[SPONGE_WIDTH])
+{
+
+#if ASM == 1
+    uint64_t res = 0;
+    res = gl_mmul(v[r], Poseidon_goldilocks_constants::MDS_MATRIX_DIAG[r]);
+
+    for (uint8_t i = 0; i < SPONGE_WIDTH; i++)
+    {
+        res = gl_add(res, gl_mmul(v[(i + r) % SPONGE_WIDTH], Poseidon_goldilocks_constants::MDS_MATRIX_CIRC[i]));
+    }
+    return res;
+#else
+    uint128_t res = 0;
+    res += (uint128_t)v[r] * (uint128_t)Poseidon_goldilocks_constants::MDS_MATRIX_DIAG[r];
+
+    for (uint8_t i = 0; i < SPONGE_WIDTH; i++)
+    {
+        res += (((uint128_t)v[(i + r) % SPONGE_WIDTH] * (uint128_t)Poseidon_goldilocks_constants::MDS_MATRIX_CIRC[i]));
+    }
+    return res % GOLDILOCKS_PRIME;
+#endif
+}
+
+void Goldilocks::partial_rounds_naive(uint64_t (&state)[SPONGE_WIDTH], uint8_t &round_ctr)
+{
+    for (uint8_t i = 0; i < N_PARTIAL_ROUNDS; i++)
+    {
+        constant_layer_naive(state, round_ctr);
+        sbox_monomial_naive(state[0]);
+        mds_layer_naive(state);
+        round_ctr += 1;
+    }
 }

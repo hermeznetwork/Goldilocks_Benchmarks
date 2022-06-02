@@ -1,9 +1,9 @@
 #ifndef POSEIDON_GOLDILOCKS_OPT_CONSTANTS
 #define POSEIDON_GOLDILOCKS_OPT_CONSTANTS
-
 #endif // POSEIDON_GOLDILOCKS_OPT_CONSTANTS
+#include "goldilocks.hpp"
+
 namespace Poseidon_goldilocks_opt_constants
-#define ASM 1
 {
 #if ASM == 1
     inline constexpr static uint64_t C[118] = {
