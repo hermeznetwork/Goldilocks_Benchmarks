@@ -15,7 +15,7 @@
 #define RATE 8
 #define CAPACITY 4
 
-static void POSEIDON_BENCH(benchmark::State &state)
+static void DISABLED_POSEIDON_BENCH(benchmark::State &state)
 {
     uint64_t input_size = NUM_HASHES * SPONGE_WIDTH;
 
@@ -58,7 +58,7 @@ static void POSEIDON_BENCH(benchmark::State &state)
     state.counters["BytesProcessed"] = benchmark::Counter(input_size * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
-static void POSEIDON_NAIVE_BENCH(benchmark::State &state)
+static void DISABLED_POSEIDON_NAIVE_BENCH(benchmark::State &state)
 {
     uint64_t input_size = NUM_HASHES * SPONGE_WIDTH;
 
@@ -266,7 +266,7 @@ static void DISABLED_MERKLE_TREE_BENCH(benchmark::State &state)
     state.counters["BytesProcessed"] = benchmark::Counter((uint64_t)NUM_ROWS * (uint64_t)NUM_COLS * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
 }
 
-static void DISABLED_iNTT_BENCH(benchmark::State &state)
+static void iNTT_BENCH(benchmark::State &state)
 {
     uint64_t *cols = (uint64_t *)malloc((uint64_t)NUM_COLS * (uint64_t)FFT_SIZE * sizeof(uint64_t));
     Goldilocks g(FFT_SIZE, state.range(0));
@@ -287,17 +287,35 @@ static void DISABLED_iNTT_BENCH(benchmark::State &state)
             cols[i + offset] = Goldilocks::gl_add(cols[(i - 2) + offset], cols[(i - 1) + offset]);
         }
     }
-
+    /*
+    for (uint64_t i = 0; i < 10; i++)
+    {
+        printf("cols[%lu]: %lu\n", i, cols[i]);
+    }
+*/
     // Benchmark
     for (auto _ : state)
     {
 #pragma omp parallel for num_threads(state.range(0))
         for (uint64_t i = 0; i < NUM_COLS; i++)
         {
+            // g.ntt(&cols[i * FFT_SIZE], FFT_SIZE);
             g.intt(&cols[i * FFT_SIZE], FFT_SIZE);
         }
     }
 
+    if ((NUM_COLS == 100) && (FFT_SIZE == (1 << 23)))
+    {
+        assert(cols[0] == 0XEF4A8E00280FE984);
+        assert(cols[1] == 0X68C8255EB38DB5B1);
+        assert(cols[8] == 0XE8619828EB16DCD0);
+        assert(cols[9] == 0X9C9DAC01C0836214);
+    }
+    /*
+    for (uint64_t i = 0; i < 10; i++)
+    {
+        printf("cols[%lu]: %#lX\n", i, cols[i]);
+    }*/
     free(cols);
     state.counters["Rate"] = benchmark::Counter((float)NUM_COLS / state.range(0), benchmark::Counter::kIsIterationInvariantRate | benchmark::Counter::kInvert);
     state.counters["BytesProcessed"] = benchmark::Counter((uint64_t)FFT_SIZE * (uint64_t)NUM_COLS * sizeof(uint64_t), benchmark::Counter::kIsIterationInvariantRate, benchmark::Counter::OneK::kIs1024);
@@ -360,7 +378,7 @@ static void DISABLED_LDE_BENCH(benchmark::State &state)
 // RangeMultiplier(2)->Range(2, omp_get_max_threads()) -> From 2 threads to omp_get_max_threads() every two
 // DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2) -> +/- 4 around the number of cores every two
 
-BENCHMARK(POSEIDON_BENCH)
+BENCHMARK(DISABLED_POSEIDON_BENCH)
     ->Unit(benchmark::kMicrosecond)
     ->DenseRange(1, 1, 1)
     ->RangeMultiplier(2)
@@ -368,7 +386,7 @@ BENCHMARK(POSEIDON_BENCH)
     ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->UseRealTime();
 
-BENCHMARK(POSEIDON_NAIVE_BENCH)
+BENCHMARK(DISABLED_POSEIDON_NAIVE_BENCH)
     ->Unit(benchmark::kMicrosecond)
     ->DenseRange(1, 1, 1)
     ->RangeMultiplier(2)
@@ -391,7 +409,7 @@ BENCHMARK(DISABLED_MERKLE_TREE_BENCH)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)
     ->UseRealTime();
 
-BENCHMARK(DISABLED_iNTT_BENCH)
+BENCHMARK(iNTT_BENCH)
     ->Unit(benchmark::kSecond)
     ->DenseRange(omp_get_max_threads() / 2 - 4, omp_get_max_threads() / 2 + 4, 2)
     ->DenseRange(omp_get_max_threads(), omp_get_max_threads(), 1)

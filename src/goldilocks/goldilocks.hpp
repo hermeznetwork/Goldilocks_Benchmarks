@@ -20,7 +20,7 @@
 #define N_ROUNDS (N_FULL_ROUNDS_TOTAL + N_PARTIAL_ROUNDS)
 #define RATE 8
 #define CAPACITY 4
-#define ASM 0
+#define ASM 1
 
 #define CACHESIZE 1 << 18
 
@@ -131,13 +131,13 @@ public:
             // assert(roots[i] == aux);
         }
 
-        uint64_t aux = gl_mmul2(roots[nRoots - 1], roots[1]);
+        uint64_t aux = gl_mmul(roots[nRoots - 1], roots[1]);
 
         assert(gl_fromm(aux) == 1);
 
         for (uint64_t i = 2; i <= s; i++)
         {
-            powTwoInv[i] = gl_mmul2(powTwoInv[i - 1], powTwoInv[1]);
+            powTwoInv[i] = gl_mmul(powTwoInv[i - 1], powTwoInv[1]);
         }
 
         mpz_clear(m_qm1d2);
@@ -152,7 +152,7 @@ public:
         uint64_t r;
         uint64_t q;
         uint64_t m = GOLDILOCKS_PRIME;
-        __asm__ __volatile__(
+        __asm__ (
             "mulq   %3\n\t"
             "divq   %4\n\t"
             : "=a"(r), "=&d"(q)
@@ -164,7 +164,7 @@ public:
     {
         uint64_t res;
 
-        __asm__ __volatile__(
+        __asm__ (
             "xor   %%r10, %%r10\n\t"
             "mov   %1, %%rax\n\t"
             "mulq   %5\n\t"
@@ -186,7 +186,7 @@ public:
     {
         uint64_t res;
 
-        __asm__ __volatile__(
+        __asm__ (
             "xor   %%r10, %%r10\n\t"
             "mov   %1, %%rax\n\t"
             "mov   %%rax, %%r9\n\t"
@@ -205,7 +205,7 @@ public:
     inline static uint64_t gl_add_2(uint64_t in1, uint64_t in2)
     {
         uint64_t res;
-        __asm__ __volatile__("mov   %1, %0\n\t"
+        __asm__ ("mov   %1, %0\n\t"
                              "add   %2, %0\n\t"
                              "jnc  1f\n\t"
                              "add   %3, %0\n\t"
@@ -232,7 +232,7 @@ public:
     inline static uint64_t gl_sub(uint64_t in1, uint64_t in2)
     {
         uint64_t res;
-        __asm__ __volatile__("mov   %1, %0\n\t"
+        __asm__ ("mov   %1, %0\n\t"
                              "sub   %2, %0\n\t"
                              "jnc  1f\n\t"
                              "add   %3, %0\n\t"
@@ -246,7 +246,7 @@ public:
     inline static uint64_t gl_mmul2(uint64_t in1, uint64_t in2)
     {
         uint64_t res;
-        __asm__ __volatile__("mov   %1, %%rax\n\t"
+        __asm__ ("mov   %1, %%rax\n\t"
                              "mul   %2\n\t"
                              "mov   %%rdx, %%r8\n\t"
                              "mov   %%rax, %%r9\n\t"
@@ -266,7 +266,7 @@ public:
     inline static uint64_t gl_mmul(uint64_t in1, uint64_t in2)
     {
         uint64_t res;
-        __asm__ __volatile__("xor   %%r10, %%r10\n\t"
+        __asm__ ("xor   %%r10, %%r10\n\t"
                              "mov   %1, %%rax\n\t"
                              "mul   %2\n\t"
                              "mov   %%rdx, %%r8\n\t"

@@ -50,32 +50,57 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n)
 
             for (u_int64_t si = 0; si < sInc; si++)
             {
+
                 u_int64_t m = 1 << (s + si);
                 u_int64_t mdiv2 = m >> 1;
                 u_int64_t mdiv2i = 1 << si;
                 u_int64_t mi = mdiv2i * 2;
-                u_int64_t j_tmp = (b * batchSize / 2);
-                j_tmp = (j_tmp & rm) * rb + (j_tmp >> (re - rs));
-                j_tmp = j_tmp % mdiv2;
-                u_int64_t w = root(s + si, j_tmp);
-                u_int64_t wi = root(s + si, 1);
-                u_int64_t mask = mdiv2i - 1;
-                u_int64_t k1 = b * batchSize;
-                u_int64_t k2 = mi / mdiv2i;
-
                 for (u_int64_t i = 0; i < (batchSize >> 1); i++)
                 {
                     u_int64_t t;
                     u_int64_t u;
-                    u_int64_t ki = k1 + k2 * i;
-                    u_int64_t ji = i & mask;
+                    u_int64_t ki = b * batchSize + (i / mdiv2i) * mi;
+                    u_int64_t ji = i % mdiv2i;
 
-                    t = gl_mmul2(w, a[ki + ji + mdiv2i]);
+                    u_int64_t j = (b * batchSize / 2 + i);
+                    j = (j & rm) * rb + (j >> (re - rs));
+                    j = j % mdiv2;
+
+                    t = gl_mmul(root(s + si, j), a[ki + ji + mdiv2i]);
                     u = a[ki + ji];
                     a[ki + ji] = gl_add(t, u);
                     a[ki + ji + mdiv2i] = gl_sub(u, t);
-                    w = gl_mmul2(w, wi);
                 }
+                /* DOEN'T WORK, it tries to compute the roots dinamicaly
+                 u_int64_t m = 1 << (s + si);
+                 u_int64_t mdiv2 = m >> 1;
+                 u_int64_t mdiv2i = 1 << si;
+                 u_int64_t mi = mdiv2i * 2;
+
+                 u_int64_t j_tmp = (b * batchSize / 2);
+                 j_tmp = (j_tmp & rm) * rb + (j_tmp >> (re - rs));
+                 j_tmp = j_tmp % mdiv2;
+                 u_int64_t w = root(s + si, j_tmp);
+                 u_int64_t wi = root(s + si, 1);
+
+                 u_int64_t mask = mdiv2i - 1;
+                 u_int64_t k1 = b * batchSize;
+                 u_int64_t k2 = mi / mdiv2i;
+
+                 for (u_int64_t i = 0; i < (batchSize >> 1); i++)
+                 {
+                     u_int64_t t;
+                     u_int64_t u;
+                     u_int64_t ki = k1 + k2 * i;
+                     u_int64_t ji = i & mask;
+
+                     t = gl_mmul(w, a[ki + ji + mdiv2i]);
+                     u = a[ki + ji];
+                     a[ki + ji] = gl_add(t, u);
+                     a[ki + ji + mdiv2i] = gl_sub(u, t);
+                     w = gl_mmul(w, wi);
+                 }
+                 */
             }
         }
 
@@ -103,11 +128,11 @@ void Goldilocks::intt(u_int64_t *a, u_int64_t n)
         u_int64_t tmp;
         u_int64_t r = n - i;
         tmp = a[i];
-        a[i] = gl_mmul2(a[r], powTwoInv[domainPow]);
-        a[r] = gl_mmul2(tmp, powTwoInv[domainPow]);
+        a[i] = gl_mmul(a[r], powTwoInv[domainPow]);
+        a[r] = gl_mmul(tmp, powTwoInv[domainPow]);
     }
-    a[0] = gl_mmul2(a[0], powTwoInv[domainPow]);
-    a[n >> 1] = gl_mmul2(a[n >> 1], powTwoInv[domainPow]);
+    a[0] = gl_mmul(a[0], powTwoInv[domainPow]);
+    a[n >> 1] = gl_mmul(a[n >> 1], powTwoInv[domainPow]);
 }
 
 void Goldilocks::shuffle(u_int64_t *dst, u_int64_t *src, uint64_t n, uint64_t s)
