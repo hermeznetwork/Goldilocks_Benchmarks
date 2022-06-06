@@ -8,7 +8,6 @@
 #include <cassert>
 #include <gmp.h>
 
-
 #define SPONGE_WIDTH 12
 #define GOLDILOCKS_PRIME 0xFFFFFFFF00000001ULL
 #define uint128_t __uint128_t
@@ -152,7 +151,7 @@ public:
         uint64_t r;
         uint64_t q;
         uint64_t m = GOLDILOCKS_PRIME;
-        __asm__ (
+        __asm__(
             "mulq   %3\n\t"
             "divq   %4\n\t"
             : "=a"(r), "=&d"(q)
@@ -164,7 +163,7 @@ public:
     {
         uint64_t res;
 
-        __asm__ (
+        __asm__(
             "xor   %%r10, %%r10\n\t"
             "mov   %1, %%rax\n\t"
             "mulq   %5\n\t"
@@ -186,7 +185,7 @@ public:
     {
         uint64_t res;
 
-        __asm__ (
+        __asm__(
             "xor   %%r10, %%r10\n\t"
             "mov   %1, %%rax\n\t"
             "mov   %%rax, %%r9\n\t"
@@ -205,14 +204,14 @@ public:
     inline static uint64_t gl_add_2(uint64_t in1, uint64_t in2)
     {
         uint64_t res;
-        __asm__ ("mov   %1, %0\n\t"
-                             "add   %2, %0\n\t"
-                             "jnc  1f\n\t"
-                             "add   %3, %0\n\t"
-                             "1: \n\t"
-                             : "=&a"(res)
-                             : "r"(in1), "r"(in2), "m"(CQ)
-                             :);
+        __asm__("mov   %1, %0\n\t"
+                "add   %2, %0\n\t"
+                "jnc  1f\n\t"
+                "add   %3, %0\n\t"
+                "1: \n\t"
+                : "=&a"(res)
+                : "r"(in1), "r"(in2), "m"(CQ)
+                :);
         return res;
     };
 
@@ -232,54 +231,54 @@ public:
     inline static uint64_t gl_sub(uint64_t in1, uint64_t in2)
     {
         uint64_t res;
-        __asm__ ("mov   %1, %0\n\t"
-                             "sub   %2, %0\n\t"
-                             "jnc  1f\n\t"
-                             "add   %3, %0\n\t"
-                             "1: \n\t"
-                             : "=&a"(res)
-                             : "r"(in1), "r"(in2), "m"(Q)
-                             :);
+        __asm__("mov   %1, %0\n\t"
+                "sub   %2, %0\n\t"
+                "jnc  1f\n\t"
+                "add   %3, %0\n\t"
+                "1: \n\t"
+                : "=&a"(res)
+                : "r"(in1), "r"(in2), "m"(Q)
+                :);
         return res;
     };
 
     inline static uint64_t gl_mmul2(uint64_t in1, uint64_t in2)
     {
         uint64_t res;
-        __asm__ ("mov   %1, %%rax\n\t"
-                             "mul   %2\n\t"
-                             "mov   %%rdx, %%r8\n\t"
-                             "mov   %%rax, %%r9\n\t"
-                             "mulq   %3\n\t"
-                             "mulq   %4\n\t"
-                             "add    %%r9, %%rax\n\t"
-                             "adc    %%r8, %%rdx\n\t"
-                             "jnc  1f\n\t"
-                             "add   %5, %%rdx\n\t"
-                             "1:"
-                             : "=&d"(res)
-                             : "r"(in1), "r"(in2), "m"(MM), "m"(Q), "m"(CQ)
-                             : "%rax", "%r8", "%r9");
+        __asm__("mov   %1, %%rax\n\t"
+                "mul   %2\n\t"
+                "mov   %%rdx, %%r8\n\t"
+                "mov   %%rax, %%r9\n\t"
+                "mulq   %3\n\t"
+                "mulq   %4\n\t"
+                "add    %%r9, %%rax\n\t"
+                "adc    %%r8, %%rdx\n\t"
+                "jnc  1f\n\t"
+                "add   %5, %%rdx\n\t"
+                "1:"
+                : "=&d"(res)
+                : "r"(in1), "r"(in2), "m"(MM), "m"(Q), "m"(CQ)
+                : "%rax", "%r8", "%r9");
         return res;
     }
 
     inline static uint64_t gl_mmul(uint64_t in1, uint64_t in2)
     {
         uint64_t res;
-        __asm__ ("xor   %%r10, %%r10\n\t"
-                             "mov   %1, %%rax\n\t"
-                             "mul   %2\n\t"
-                             "mov   %%rdx, %%r8\n\t"
-                             "mov   %%rax, %%r9\n\t"
-                             "mulq   %3\n\t"
-                             "mulq   %4\n\t"
-                             "add    %%r9, %%rax\n\t"
-                             "adc    %%r8, %%rdx\n\t"
-                             "cmovc %5, %%r10\n\t"
-                             "add   %%r10, %%rdx\n\t"
-                             : "=&d"(res)
-                             : "r"(in1), "r"(in2), "m"(MM), "m"(Q), "m"(CQ)
-                             : "%rax", "%r8", "%r9", "%r10");
+        __asm__("xor   %%r10, %%r10\n\t"
+                "mov   %1, %%rax\n\t"
+                "mul   %2\n\t"
+                "mov   %%rdx, %%r8\n\t"
+                "mov   %%rax, %%r9\n\t"
+                "mulq   %3\n\t"
+                "mulq   %4\n\t"
+                "add    %%r9, %%rax\n\t"
+                "adc    %%r8, %%rdx\n\t"
+                "cmovc %5, %%r10\n\t"
+                "add   %%r10, %%rdx\n\t"
+                : "=&d"(res)
+                : "r"(in1), "r"(in2), "m"(MM), "m"(Q), "m"(CQ)
+                : "%rax", "%r8", "%r9", "%r10");
         return res;
     }
 
@@ -301,6 +300,8 @@ public:
 
     void ntt(u_int64_t *a, u_int64_t n);
     void reversePermutation(u_int64_t *dst, u_int64_t *a, u_int64_t n);
+    void ntt_block(u_int64_t *a, u_int64_t n, u_int64_t ncols);
+    void reversePermutation_block(u_int64_t *dst, u_int64_t *a, u_int64_t n, u_int64_t ncols);
     void static poseidon(uint64_t (&input)[SPONGE_WIDTH]);
     void static linear_hash(uint64_t *output, uint64_t *input, uint64_t size);
     void static poseidon_naive(uint64_t (&input)[SPONGE_WIDTH]);
@@ -313,8 +314,10 @@ public:
     {
         return roots[idx << (s - domainPow)];
     }
+    void shuffle_block(u_int64_t *dst, u_int64_t *src, uint64_t n, uint64_t s, uint64_t ncols);
     void shuffle(u_int64_t *dst, u_int64_t *src, uint64_t n, uint64_t s);
     void intt(u_int64_t *a, u_int64_t n);
+    void intt_block(u_int64_t *a, u_int64_t n, u_int64_t ncols);
 
     void traspose(
         u_int64_t *dst,
@@ -327,6 +330,19 @@ public:
         uint64_t dstRowSize,
         uint64_t dstX,
         uint64_t dstY);
+
+    void traspose_block(
+        u_int64_t *dst,
+        u_int64_t *src,
+        uint64_t srcRowSize,
+        uint64_t srcX,
+        uint64_t srcWidth,
+        uint64_t srcY,
+        uint64_t srcHeight,
+        uint64_t dstRowSize,
+        uint64_t dstX,
+        uint64_t dstY,
+        uint64_t ncols);
 };
 
 #endif // GOLDILOCKS

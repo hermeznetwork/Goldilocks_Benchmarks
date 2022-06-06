@@ -5,7 +5,7 @@
 #include <cstring>
 #include <math.h> /* ceil */
 
-#define NUM_COLS 100
+#define NUM_COLS 32
 #define NUM_HASHES 10000
 #define FFT_SIZE (1 << 23)
 #define NUM_ROWS (1 << 25)
@@ -296,21 +296,23 @@ static void iNTT_BENCH(benchmark::State &state)
     // Benchmark
     for (auto _ : state)
     {
-#pragma omp parallel for num_threads(state.range(0))
-        for (uint64_t i = 0; i < NUM_COLS; i++)
-        {
-            // g.ntt(&cols[i * FFT_SIZE], FFT_SIZE);
-            g.intt(&cols[i * FFT_SIZE], FFT_SIZE);
-        }
+        //#pragma omp parallel for num_threads(state.range(0))
+        //for (uint64_t i = 0; i < NUM_COLS; i++)
+        //{
+            // g.intt_block(&cols[0], FFT_SIZE, NUM_COLS);
+            //g.intt(&cols[i * FFT_SIZE], FFT_SIZE);
+            //       }
+        //}
     }
 
-    if ((NUM_COLS == 100) && (FFT_SIZE == (1 << 23)))
-    {
-        assert(cols[0] == 0XEF4A8E00280FE984);
-        assert(cols[1] == 0X68C8255EB38DB5B1);
-        assert(cols[8] == 0XE8619828EB16DCD0);
-        assert(cols[9] == 0X9C9DAC01C0836214);
-    }
+    /*
+        if ((NUM_COLS == 100) && (FFT_SIZE == (1 << 23)))
+        {
+            assert(cols[0] == 0XEF4A8E00280FE984);
+            assert(cols[1] == 0X68C8255EB38DB5B1);
+            assert(cols[8] == 0XE8619828EB16DCD0);
+            assert(cols[9] == 0X9C9DAC01C0836214);
+        }*/
     /*
     for (uint64_t i = 0; i < 10; i++)
     {
