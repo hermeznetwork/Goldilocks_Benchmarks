@@ -8,7 +8,6 @@
 #include <iostream>
 
 
-
 #define SIZE 8388608
 
 int main(int argc, char **argv ){
@@ -34,12 +33,10 @@ int main(int argc, char **argv ){
 
     uint64_t length = SIZE;
     printf("Columns per proc=%lu(-1) reps=%d\n",columns,reps);
-    Goldilocks g(length, 2);
+    Goldilocks g(length, nThreads);
     
     uint64_t *pol_ext_1 = (uint64_t *)malloc(length * sizeof(uint64_t) *columns);
     uint64_t *pol_ext_2 = (uint64_t *)malloc(length * sizeof(uint64_t) *columns);
-    uint64_t *aux1 = (uint64_t *)malloc(length * sizeof(uint64_t) * columns);
-    uint64_t *aux2 = (uint64_t *)malloc(length * sizeof(uint64_t) *columns);
 
     
     // Fibonacci
@@ -79,40 +76,25 @@ int main(int argc, char **argv ){
 #pragma omp parallel for    
         for (u_int64_t i = 0; i < columns; i++)
         {
-            int offset = i*length;
-            g.ntt(pol_ext_1+offset, length,aux1+offset);
+            int offset = i*length;;
+            g.ntt(pol_ext_1+offset, length);
         }
     }
     double runtime1 = omp_get_wtime() - st;
     printf("NON-VECTORIZED// Columns: %lu, time:%f\n", columns, runtime1 / reps);
    
+
     //
     // VECTORIZED EXECUTION
     //
     st = omp_get_wtime();  
     for (int k=0; k<reps; ++k)
     {
-	    
-//#pragma omp parallel for 
-//        for (u_int64_t i = 0; i < blocks; i++){
-//       
-//         
-           #pragma omp task 
-	   {
-	      int i = 0;
-	      int offset = i*(columns/blocks)*length;
-              g.ntt_block(&pol_ext_2[offset], length, colsBlock,aux2);
-	   }
-          
- 	   #pragma omp task
-	   {
-	      int i = 1;
-	      int offset = i*(columns/blocks)*length;
-              g.ntt_block(&pol_ext_2[offset], length, colsBlock,aux2);
-
-	   }
-           #pragma omp taskwait
-//	}
+ //#pragma omp parallel for num_threads(blocks)
+        for (u_int64_t i = 0; i < blocks; i++){
+	   int offset = i*(columns/blocks)*length;
+           g.ntt_block(&pol_ext_2[offset], length, columns/blocks);
+	}
     }
     double runtime2 = omp_get_wtime() - st;
     printf("VECTORIZED    // Columns: %lu, time:%f\n", columns, runtime2 / reps);
@@ -133,14 +115,12 @@ int main(int argc, char **argv ){
 	 }
        }
     }
-
+   
     u_int64_t cont = reps*columns;
     printf("Ffts done: %lu, length: %lu speedup: %f\n", cont,length,runtime1/runtime2);
     
     free(pol_ext_1);
     free(pol_ext_2);
-    free(aux1);
-    free(aux2);
 
     return 0;
 }
