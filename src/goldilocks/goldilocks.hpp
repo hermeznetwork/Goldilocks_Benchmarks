@@ -301,7 +301,9 @@ public:
     void ntt(u_int64_t *a, u_int64_t n);
     void reversePermutation(u_int64_t *dst, u_int64_t *a, u_int64_t n);
     void ntt_block(u_int64_t *a, u_int64_t n, u_int64_t ncols);
+    void ntt_block_2(u_int64_t *a, u_int64_t n, u_int64_t ncols);
     void reversePermutation_block(u_int64_t *dst, u_int64_t *a, u_int64_t n, u_int64_t ncols);
+    void reversePermutation_block_2(u_int64_t *dst, u_int64_t *a, u_int64_t n, u_int64_t ncols);
     void static poseidon(uint64_t (&input)[SPONGE_WIDTH]);
     void static linear_hash(uint64_t *output, uint64_t *input, uint64_t size);
     void static poseidon_naive(uint64_t (&input)[SPONGE_WIDTH]);
@@ -315,6 +317,7 @@ public:
         return roots[idx << (s - domainPow)];
     }
     void shuffle_block(u_int64_t *dst, u_int64_t *src, uint64_t n, uint64_t s, uint64_t ncols);
+    void shuffle_block_2(u_int64_t *dst, u_int64_t *src, uint64_t n, uint64_t s, uint64_t ncols);
     void shuffle(u_int64_t *dst, u_int64_t *src, uint64_t n, uint64_t s);
     void intt(u_int64_t *a, u_int64_t n);
     void intt_block(u_int64_t *a, u_int64_t n, u_int64_t ncols);
@@ -343,6 +346,21 @@ public:
         uint64_t dstX,
         uint64_t dstY,
         uint64_t ncols);
+    
+    void traspose_block_2(
+        u_int64_t *dst,
+        u_int64_t *src,
+        uint64_t srcRowSize,
+        uint64_t srcX,
+        uint64_t srcWidth,
+        uint64_t srcY,
+        uint64_t srcHeight,
+        uint64_t dstRowSize,
+        uint64_t dstX,
+        uint64_t dstY,
+        uint64_t ncols);
+
+    
 };
 
 #endif // GOLDILOCKS
