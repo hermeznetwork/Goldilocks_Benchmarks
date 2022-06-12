@@ -48,7 +48,10 @@ int main(int argc, char **argv ){
     LIKWID_MARKER_REGISTER("VECT-PERMUTATION");
 	LIKWID_MARKER_REGISTER("VECT-NTT");
 	LIKWID_MARKER_REGISTER("VECT-SHUFFLE");
-
+    LIKWID_MARKER_REGISTER("VECT2");
+    LIKWID_MARKER_REGISTER("VECT2-PERMUTATION");
+	LIKWID_MARKER_REGISTER("VECT2-NTT");
+	LIKWID_MARKER_REGISTER("VECT2-SHUFFLE");
 #endif
     }
 
@@ -133,6 +136,7 @@ int main(int argc, char **argv ){
    
     //
     // VECTORIZED EXECUTION
+    //
 #ifdef LIKWID_PERFMON
     #pragma omp parallel
     {
@@ -142,9 +146,9 @@ int main(int argc, char **argv ){
     st = omp_get_wtime();  
     for (int k=0; k<reps; ++k)
     {   
-	 int i = 0;
-	 int offset = i*(columns/blocks)*length;
-         g2.ntt_block(&pol_ext_2[offset], length, colsBlock);
+	    int i = 0;
+	    int offset = i*(columns/blocks)*length;
+        g2.ntt_block(&pol_ext_2[offset], length, colsBlock);
     }
     double runtime2 = omp_get_wtime() - st;
 #ifdef LIKWID_PERFMON
@@ -155,32 +159,57 @@ int main(int argc, char **argv ){
 #endif
     printf("VECTORIZED     // Columns: %lu, time:%f\n", columns, runtime2 / reps);
     
-
+    //
+    // VECTORIZED EXECUTION 2
+    //
+#ifdef LIKWID_PERFMON
+    #pragma omp parallel
+    {
+       LIKWID_MARKER_START("VECT2");
+    }
+#endif
+    st = omp_get_wtime();  
+    for (int k=0; k<reps; ++k)
+    {   
+	 int i = 0;
+	 int offset = i*(columns/blocks)*length;
+         g2.ntt_block_2(&pol_ext_3[offset], length, colsBlock);
+    }
+    double runtime3 = omp_get_wtime() - st;
+#ifdef LIKWID_PERFMON
+    #pragma omp parallel
+    {
+       LIKWID_MARKER_STOP("VECT2");
+    }
+#endif
+    printf("VECTORIZED 2    // Columns: %lu, time:%f\n", columns, runtime3 / reps);
 
     //
     // CHECK RESULTS
     //
     for(uint64_t k=0; k<blocks; k++){
-       uint64_t offset0 = colsBlock*length*k;	    
- #pragma omp parallel for
-       for(uint64_t j=0; j<length; ++j){
-	  uint64_t offset1 = offset0+j*colsBlock;
-	  for (uint64_t i = 0; i < colsBlock; i++)
-	  {
-	     uint64_t offset2 = (i+k*colsBlock)*length;
-	     assert(pol_ext_2[offset1+i]==(pol_ext_1[j+offset2]));
-	 }
+        uint64_t offset0 = colsBlock*length*k;	    
+        #pragma omp parallel for
+        for(uint64_t j=0; j<length; ++j){
+	        uint64_t offset1 = offset0+j*colsBlock;
+	        for (uint64_t i = 0; i < colsBlock; i++)
+	        {
+	            uint64_t offset2 = (i+k*colsBlock)*length;
+	            assert(pol_ext_2[offset1+i]==(pol_ext_1[j+offset2]));
+                assert(pol_ext_3[offset1+i]==(pol_ext_1[j+offset2]));
+	        }
        }
     }
 
     u_int64_t cont = reps*columns;
-    printf("Ffts done: %lu, length: %lu speedup: %f\n", cont,length,runtime1/runtime2);
+    printf("Ffts done: %lu, length: %lu speedups: %f %f\n", cont,length,runtime1/runtime2,runtime1/runtime3);
 #ifdef LIKWID_PERFMON
     LIKWID_MARKER_CLOSE;
 #endif
     
     free(pol_ext_1);
     free(pol_ext_2);
+    free(pol_ext_3);
 
     return 0;
 }
