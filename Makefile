@@ -20,6 +20,10 @@ ifeq ($(dbg),1)
 else
       CXXFLAGS += -O3
 endif
+likwid = 1
+ifeq ($(likwid),1)
+      LDFLAGS += -DLIKWID_PERFMON -I/usr/local/include -L/usr/local/lib -llikwid -lm  
+endif
 
 ### Establish the operating system name
 KERNEL = $(shell uname -s)
