@@ -86,7 +86,7 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n)
     }
     if (a != _a)
     {
-        // printf("baaaaad!\n");
+        printf("baaaaad!\n");
         shuffle(a, a2, n, 0);
     }
     delete aux_a;
