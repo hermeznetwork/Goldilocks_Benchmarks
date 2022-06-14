@@ -20,7 +20,7 @@
 #define N_ROUNDS (N_FULL_ROUNDS_TOTAL + N_PARTIAL_ROUNDS)
 #define RATE 8
 #define CAPACITY 4
-#define ASM 0
+#define ASM 1
 
 #define CACHESIZE 1 << 18
 
