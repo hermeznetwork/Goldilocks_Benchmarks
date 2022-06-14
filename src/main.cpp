@@ -5,40 +5,44 @@
 #include <string.h>
 #include <cstring>
 
-#define LENGTH (2 << 27)
+#define NUM_ROWS (1 << 24)
+#define NUM_COLS 100
 
 static void FFT_BENCHMARK(benchmark::State &state)
 {
     RawFr field;
-    uint64_t lenght = 2 << state.range(0);
-    FFT<RawFr> fft(lenght);
+    FFT<RawFr> fft(NUM_ROWS);
     RawFr::Element *pol;
+    pol = (RawFr::Element *)malloc((uint64_t)NUM_COLS * (uint64_t)NUM_ROWS * sizeof(RawFr::Element));
 
-    pol = (RawFr::Element *)malloc(lenght * sizeof(RawFr::Element));
-
-    // Fibonacci
-    field.fromString(pol[0], "0");
-    field.fromString(pol[1], "1");
-    for (uint64_t i = 2; i < lenght; i++)
+#pragma omp parallel for
+    for (uint64_t j = 0; j < NUM_COLS; j++)
     {
-        field.add(pol[i], pol[i - 1], pol[i - 2]);
+        uint64_t offset = j * (uint64_t)NUM_ROWS;
+	field.fromString(pol[offset], std::to_string((int)(1 + j)));
+        field.fromString(pol[offset + 1], std::to_string((int)(1 + j)));
+        for (uint64_t i = 2; i < NUM_ROWS; i++)
+        {
+            field.add(pol[i + offset],pol[(i - 2) + offset], pol[(i - 1) + offset]);
+        }
     }
-
     for (auto _ : state)
     {
-        fft.fft(pol, lenght);
-//        fft.ifft(pol, lenght);
-    }
-
-/*
-    for (uint64_t i = 0; i < 10; i++) {
+#pragma omp parallel for
+         for (uint64_t i = 0; i < NUM_COLS; i++)
+         {
+              fft.fft(&pol[i * NUM_ROWS], NUM_ROWS);
+//              fft.ifft(&pol[i * NUM_ROWS], NUM_ROWS);
+         }
+     }
+/*   
+ for (uint64_t i = 0; i < 10; i++) {
         printf("%s ", field.toString(pol[i]).c_str());
     }
-*/
-
-    free(pol);
+*/  
+  free(pol);
 }
 
-BENCHMARK(FFT_BENCHMARK)->DenseRange(23, 27, 1)->Unit(benchmark::kMillisecond)->Iterations(5);
+BENCHMARK(FFT_BENCHMARK)->DenseRange(11, 1, 1)->Unit(benchmark::kMillisecond)->Iterations(5);
 BENCHMARK_MAIN();
 
