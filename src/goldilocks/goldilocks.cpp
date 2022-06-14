@@ -283,7 +283,7 @@ void Goldilocks::ntt_block_2(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int6
     u_int64_t maxBatchPow = s / nphase;
 
     u_int64_t batchSize = 1 << maxBatchPow;
-    u_int64_t nBatches = n / batchSize    
+    u_int64_t nBatches = n / batchSize;    
 
     omp_set_dynamic(0);
     omp_set_num_threads(nThreads);
