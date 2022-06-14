@@ -14,6 +14,7 @@
 
 #define SIZE 8388608
 
+
 int main(int argc, char **argv ){
 
 
@@ -21,6 +22,7 @@ int main(int argc, char **argv ){
     uint64_t blocks    = atoi(argv[2]);
     int reps           = atoi(argv[3]);
     uint64_t nThreads  = atoi(argv[4]);
+    uint64_t nphase    = atoi(argv[5]);
     uint64_t colsBlock = columns/blocks;
 
 #ifdef LIKWID_PERFMON
@@ -93,16 +95,16 @@ int main(int argc, char **argv ){
 
     // INITIALIZATION VECTORIZED
     for(uint64_t k=0; k<blocks; k++){
-       uint64_t offset0 = colsBlock*length*k;	    
+        uint64_t offset0 = colsBlock*length*k;	    
  #pragma omp parallel for
-       for(uint64_t j=0; j<length; ++j){
-	  uint64_t offset1 = offset0+j*colsBlock;
-	  for (uint64_t i = 0; i < colsBlock; i++)
-	  {
-	     uint64_t offset2 = (i+k*colsBlock)*length;
-	     pol_ext_2[offset1+i]=(pol_ext_1[j+offset2]);
-	     pol_ext_3[offset1+i]=(pol_ext_1[j+offset2]);
-	 }
+        for(uint64_t j=0; j<length; ++j){
+	        uint64_t offset1 = offset0+j*colsBlock;
+	        for (uint64_t i = 0; i < colsBlock; i++)
+	        {
+	            uint64_t offset2 = (i+k*colsBlock)*length;
+	            pol_ext_2[offset1+i]=(pol_ext_1[j+offset2]);
+	            pol_ext_3[offset1+i]=(pol_ext_1[j+offset2]);
+	        }
        }
     }
 
@@ -121,8 +123,8 @@ int main(int argc, char **argv ){
 #pragma omp parallel for    
         for (u_int64_t i = 0; i < columns; i++)
         {
-            int offset = i*length;
-            g1.ntt(pol_ext_1+offset, length);
+            u_int64_t offset = i*length;
+            g1.ntt(pol_ext_1+offset, length,4);
         }
     }
     double runtime1 = omp_get_wtime() - st;
@@ -146,9 +148,10 @@ int main(int argc, char **argv ){
     st = omp_get_wtime();  
     for (int k=0; k<reps; ++k)
     {   
-	    int i = 0;
-	    int offset = i*(columns/blocks)*length;
-        g2.ntt_block(&pol_ext_2[offset], length, colsBlock);
+	    for(uint64_t i=0; i<blocks; ++i){
+	        u_int64_t offset = i*(columns/blocks)*length;
+            g2.ntt_block(&pol_ext_2[offset], length, colsBlock,nphase);
+        }
     }
     double runtime2 = omp_get_wtime() - st;
 #ifdef LIKWID_PERFMON
@@ -171,9 +174,10 @@ int main(int argc, char **argv ){
     st = omp_get_wtime();  
     for (int k=0; k<reps; ++k)
     {   
-	 int i = 0;
-	 int offset = i*(columns/blocks)*length;
-         g2.ntt_block_2(&pol_ext_3[offset], length, colsBlock);
+	    for(uint64_t i=0; i<blocks; ++i){
+	        uint64_t offset = i*(columns/blocks)*length;
+            g2.ntt_block_2(&pol_ext_3[offset], length, colsBlock,nphase);
+        }
     }
     double runtime3 = omp_get_wtime() - st;
 #ifdef LIKWID_PERFMON
@@ -195,14 +199,14 @@ int main(int argc, char **argv ){
 	        for (uint64_t i = 0; i < colsBlock; i++)
 	        {
 	            uint64_t offset2 = (i+k*colsBlock)*length;
-	            assert(pol_ext_2[offset1+i]==(pol_ext_1[j+offset2]));
-                assert(pol_ext_3[offset1+i]==(pol_ext_1[j+offset2]));
+	            assert(pol_ext_2[offset1+i] % GOLDILOCKS_PRIME  == pol_ext_1[j+offset2] % GOLDILOCKS_PRIME);
+                assert(pol_ext_3[offset1+i] % GOLDILOCKS_PRIME  == pol_ext_1[j+offset2]% GOLDILOCKS_PRIME);
 	        }
        }
     }
 
     u_int64_t cont = reps*columns;
-    printf("Ffts done: %lu, length: %lu speedups: %f %f\n", cont,length,runtime1/runtime2,runtime1/runtime3);
+    printf("Ffts done: %lu, length: %lu speedups: %f %f\n\n", cont,length,runtime1/runtime2,runtime1/runtime3);
 #ifdef LIKWID_PERFMON
     LIKWID_MARKER_CLOSE;
 #endif

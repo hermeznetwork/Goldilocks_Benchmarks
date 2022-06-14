@@ -21,7 +21,7 @@ static inline u_int64_t BR(u_int64_t x, u_int64_t domainPow)
     return (((x & 0xAAAAAAAA) >> 1) | ((x & 0x55555555) << 1)) >> (32 - domainPow);
 }
 
-void Goldilocks::ntt(u_int64_t *_a, u_int64_t n)
+void Goldilocks::ntt(u_int64_t *_a, u_int64_t n, u_int64_t nphase)
 {
     u_int64_t *aux_a = new u_int64_t[n];
     u_int64_t *a = _a;
@@ -45,7 +45,7 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n)
     a = tmp;
     u_int64_t domainPow = log2(n);
     assert(((u_int64_t)1 << domainPow) == n);
-    u_int64_t maxBatchPow = s / 4;
+    u_int64_t maxBatchPow = s / nphase;
 
     u_int64_t batchSize = 1 << maxBatchPow;
     u_int64_t nBatches = n / batchSize;
@@ -152,7 +152,7 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n)
     delete[] aux_a;
 }
 
-void Goldilocks::ntt_block(u_int64_t *_a, u_int64_t n, u_int64_t ncols)
+void Goldilocks::ntt_block(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int64_t nphase)
 {
     u_int64_t *aux_a = new u_int64_t[n * ncols];
     u_int64_t *a = _a;
@@ -177,7 +177,7 @@ void Goldilocks::ntt_block(u_int64_t *_a, u_int64_t n, u_int64_t ncols)
 
     u_int64_t domainPow = log2(n);
     assert(((u_int64_t)1 << domainPow) == n);
-    u_int64_t maxBatchPow = s / 4;
+    u_int64_t maxBatchPow = s / nphase;
 
     u_int64_t batchSize = 1 << maxBatchPow;
     u_int64_t nBatches = n / batchSize;
@@ -255,7 +255,7 @@ void Goldilocks::ntt_block(u_int64_t *_a, u_int64_t n, u_int64_t ncols)
     delete[] aux_a;
 }
 
-void Goldilocks::ntt_block_2(u_int64_t *_a, u_int64_t n, u_int64_t ncols)
+void Goldilocks::ntt_block_2(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int64_t nphase)
 {
     u_int64_t *aux_a = new u_int64_t[n * ncols];
     u_int64_t *a = _a;
@@ -280,16 +280,18 @@ void Goldilocks::ntt_block_2(u_int64_t *_a, u_int64_t n, u_int64_t ncols)
 
     u_int64_t domainPow = log2(n);
     assert(((u_int64_t)1 << domainPow) == n);
-    u_int64_t maxBatchPow = s / 4;
+    u_int64_t maxBatchPow = s / nphase;
 
     u_int64_t batchSize = 1 << maxBatchPow;
-    u_int64_t nBatches = n / batchSize;
+    u_int64_t nBatches = n / batchSize    
 
     omp_set_dynamic(0);
     omp_set_num_threads(nThreads);
     for (u_int64_t s = 1; s <= domainPow; s += maxBatchPow)
     {
+        
         u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s + 1;
+
 #ifdef LIKWID_PERFMON_NTT
         #pragma omp parallel
         {
@@ -329,22 +331,19 @@ void Goldilocks::ntt_block_2(u_int64_t *_a, u_int64_t n, u_int64_t ncols)
                         a[offset1 + k] = gl_sub(u, t);
                     }
                 }
+                
+            }
+            uint64_t srcWidth = 1 << sInc;
+            uint64_t niters = batchSize / srcWidth;
+            for(uint64_t kk=0; kk<niters; ++kk)
+            {
+                for (u_int64_t x = 0; x < srcWidth; x++){
+                    uint64_t offset_dstY = (x * (nBatches*niters) +  (b*niters+kk)) * ncols;
+                    uint64_t offset_src =  ((b*niters+kk) * srcWidth + x ) * ncols;
+                    std::memcpy(&a2[offset_dstY], &a[offset_src], ncols * sizeof(uint64_t));
+                }
             }
         }
-#ifdef LIKWID_PERFMON_NTT
-        #pragma omp parallel
-        {
-            LIKWID_MARKER_STOP("VECT-NTT");
-            LIKWID_MARKER_START("VECT-SHUFFLE");
-        }
-#endif
-        shuffle_block_2(a2, a, n, sInc, ncols); 
-#ifdef LIKWID_PERFMON_NTT
-        #pragma omp parallel
-        {
-            LIKWID_MARKER_STOP("VECT-SHUFFLE");
-        }
-#endif
         tmp = a2;
         a2 = a;
         a = tmp;
@@ -352,15 +351,15 @@ void Goldilocks::ntt_block_2(u_int64_t *_a, u_int64_t n, u_int64_t ncols)
     if (a != _a) // rick: this applyies for al the ntt?
     {
         printf("baaaaad!\n");
-
-        shuffle_block_2(a, a2, n, 0, ncols);
+        //shuffle_block_2(a, a2, n, 0, ncols);
+        std::memcpy(&a, &a2, n*ncols * sizeof(uint64_t));
     }
     delete[] aux_a;
 }
 
-void Goldilocks::intt(u_int64_t *a, u_int64_t n)
+void Goldilocks::intt(u_int64_t *a, u_int64_t n, u_int64_t nphase)
 {
-    ntt(a, n);
+    ntt(a, n, nphase);
     u_int64_t domainPow = log2(n);
     u_int64_t nDiv2 = n >> 1;
 #pragma omp parallel for
@@ -376,9 +375,9 @@ void Goldilocks::intt(u_int64_t *a, u_int64_t n)
     a[n >> 1] = gl_mmul(a[n >> 1], powTwoInv[domainPow]);
 }
 
-void Goldilocks::intt_block(u_int64_t *a, u_int64_t n, u_int64_t ncols)
+void Goldilocks::intt_block(u_int64_t *a, u_int64_t n, u_int64_t ncols, u_int64_t nphase)
 {
-    ntt_block(a, n, ncols);
+    ntt_block(a, n, ncols,nphase);
     u_int64_t domainPow = log2(n);
     u_int64_t nDiv2 = n >> 1;
 
@@ -445,25 +444,6 @@ void Goldilocks::shuffle_block(u_int64_t *dst, u_int64_t *src, uint64_t n, uint6
 #pragma omp taskwait
 }
 
-void Goldilocks::shuffle_block_2(u_int64_t *dst, u_int64_t *src, uint64_t n, uint64_t s, uint64_t ncols)
-{
-    uint64_t srcRowSize = 1 << s;
-
-    uint64_t srcX = 0;
-    uint64_t srcWidth = 1 << s;
-    uint64_t srcY = 0;
-    uint64_t srcHeight = n / srcRowSize;
-
-    uint64_t dstRowSize = n / srcRowSize;
-    uint64_t dstX = 0;
-    uint64_t dstY = 0;
-
-//#pragma omp parallel
-//#pragma omp single
-    traspose_block(dst, src, srcRowSize, srcX, srcWidth, srcY, srcHeight, dstRowSize, dstX, dstY, ncols);
-//#pragma omp taskwait
-}
-
 void Goldilocks::traspose(
     u_int64_t *dst,
     u_int64_t *src,
@@ -501,7 +481,6 @@ void Goldilocks::traspose(
         traspose(dst, src, srcRowSize, srcX, srcWidth, srcY + srcHeight / 2, srcHeight / 2, dstRowSize, dstX + srcHeight / 2, dstY);
     }
 }
-
 void Goldilocks::traspose_block(
     u_int64_t *dst,
     u_int64_t *src,
@@ -547,54 +526,6 @@ void Goldilocks::traspose_block(
         traspose_block(dst, src, srcRowSize, srcX, srcWidth, srcY + srcHeight / 2, srcHeight / 2, dstRowSize, dstX + srcHeight / 2, dstY, ncols);
     }
 }
-
-void Goldilocks::traspose_block_2(
-    u_int64_t *dst,
-    u_int64_t *src,
-    uint64_t srcRowSize,
-    uint64_t srcX,
-    uint64_t srcWidth,
-    uint64_t srcY,
-    uint64_t srcHeight,
-    uint64_t dstRowSize,
-    uint64_t dstX,
-    uint64_t dstY,
-    uint64_t ncols)
-{
-    if (true || (srcWidth == 1) || (srcHeight == 1) || (ncols * srcWidth * srcHeight < CACHESIZE)) 
-    {
-//#pragma omp task
-        {
-            #pragma omp parallel for collapse(2)
-            for (uint64_t x = 0; x < srcWidth; x++)
-            {
-                for (uint64_t y = 0; y < srcHeight; y++)
-                {
-                    uint64_t offset_dstY = ((dstY + +x) * dstRowSize + (dstX + y)) * ncols;
-                    uint64_t offset_src = ((srcY + +y) * srcRowSize + (srcX + x)) * ncols;
-                    /*for (uint64_t k = 0; k < ncols; ++k)
-                    {
-                        dst[offset_dstY + k] = src[offset_src + k];
-                    }*/
-                    std::memcpy(&dst[offset_dstY], &src[offset_src], ncols * sizeof(uint64_t));
-                }
-            }
-        }
-        return;
-    }
-    if (srcWidth > srcHeight)
-    {
-        traspose_block_2(dst, src, srcRowSize, srcX, srcWidth / 2, srcY, srcHeight, dstRowSize, dstX, dstY, ncols);
-        traspose_block_2(dst, src, srcRowSize, srcX + srcWidth / 2, srcWidth / 2, srcY, srcHeight, dstRowSize, dstX, dstY + srcWidth / 2, ncols);
-    }
-    else
-    {
-        traspose_block_2(dst, src, srcRowSize, srcX, srcWidth, srcY, srcHeight / 2, dstRowSize, dstX, dstY, ncols);
-        traspose_block_2(dst, src, srcRowSize, srcX, srcWidth, srcY + srcHeight / 2, srcHeight / 2, dstRowSize, dstX + srcHeight / 2, dstY, ncols);
-    }
-}
-
-
 
 void Goldilocks::reversePermutation(u_int64_t *dst, u_int64_t *a, u_int64_t n)
 {
