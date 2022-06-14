@@ -6,7 +6,7 @@
 #include <likwid-marker.h>
 #endif
 
-//#define  LIKWID_PERFMON_NTT 
+#define  LIKWID_PERFMON_NTT 
 const uint64_t Goldilocks::Q = 0xFFFFFFFF00000001LL;
 const uint64_t Goldilocks::MM = 0xFFFFFFFeFFFFFFFFLL;
 const uint64_t Goldilocks::CQ = 0x00000000FFFFFFFFLL;
@@ -158,14 +158,14 @@ void Goldilocks::ntt_block(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int64_
     u_int64_t *a = _a;
     u_int64_t *a2 = aux_a;
     u_int64_t *tmp;
-#ifdef LIKWID_PERFMON
+#ifdef LIKWID_PERFMON_NTT
     #pragma omp parallel
     {
        LIKWID_MARKER_START("VECT-PERMUTATION");
     }
 #endif
     reversePermutation_block(a2, a, n, ncols);
-#ifdef LIKWID_PERFMON
+#ifdef LIKWID_PERFMON_NTT
     #pragma omp parallel
     {
        LIKWID_MARKER_STOP("VECT-PERMUTATION");
@@ -261,14 +261,14 @@ void Goldilocks::ntt_block_2(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int6
     u_int64_t *a = _a;
     u_int64_t *a2 = aux_a;
     u_int64_t *tmp;
-#ifdef LIKWID_PERFMON
+#ifdef LIKWID_PERFMON_NTT
     #pragma omp parallel
     {
        LIKWID_MARKER_START("VECT-PERMUTATION");
     }
 #endif
     reversePermutation_block_2(a2, a, n, ncols);
-#ifdef LIKWID_PERFMON
+#ifdef LIKWID_PERFMON_NTT
     #pragma omp parallel
     {
        LIKWID_MARKER_STOP("VECT-PERMUTATION");
