@@ -337,7 +337,7 @@ static void DISABLED_LDE_BENCH(benchmark::State &state)
     for (auto _ : state)
     {
         std::memcpy(pol_ext, pol_ext_intt, (uint64_t)FFT_SIZE * (uint64_t)BLOWUP_FACTOR * sizeof(uint64_t));
-
+#pragma omp parallel for num_threads(state.range(0))
         for (uint64_t i = 0; i < NUM_COLS; i++)
         {
             for (uint j = 0; j < FFT_SIZE * BLOWUP_FACTOR; j++)
