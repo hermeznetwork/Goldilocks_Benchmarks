@@ -1,0 +1,12 @@
+echo "REGIONS:"
+grep 'Group' out_L3_64_blocks2_all
+echo " "
+
+echo "RUNTIMES:"
+grep 'Runtime' out_L3_64_blocks2_all | grep 'STAT' | grep 'RDTSC'
+echo " "
+
+echo "L3:"
+grep 'L3_MISS STAT' out_L3_64_blocks2_all
+echo " "
+
