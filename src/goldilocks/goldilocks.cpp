@@ -6,7 +6,7 @@
 #include <likwid-marker.h>
 #endif
 
-#define  LIKWID_PERFMON_NTT 
+//#define  LIKWID_PERFMON_NTT 
 const uint64_t Goldilocks::Q = 0xFFFFFFFF00000001LL;
 const uint64_t Goldilocks::MM = 0xFFFFFFFeFFFFFFFFLL;
 const uint64_t Goldilocks::CQ = 0x00000000FFFFFFFFLL;
@@ -55,17 +55,15 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n, u_int64_t nphase)
     for (u_int64_t s = 1; s <= domainPow; s += maxBatchPow)
     {
         u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s + 1;
-        
-#ifdef LIKWID_PERFMON_NTT
-        #pragma omp parallel
-        {
-            LIKWID_MARKER_START("NVECT-NTT");
-        }
-#endif
+        #ifdef LIKWID_PERFMON_NTT
+            #pragma omp parallel
+            {
+                LIKWID_MARKER_START("NVECT-NTT");
+            }
+        #endif
         #pragma omp parallel for
         for (u_int64_t b = 0; b < nBatches; b++)
         {
-            
             u_int64_t rs = s - 1;
             uint64_t re = domainPow - 1;
             uint64_t rb = 1 << rs;
@@ -187,12 +185,12 @@ void Goldilocks::ntt_block(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int64_
     for (u_int64_t s = 1; s <= domainPow; s += maxBatchPow)
     {
         u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s + 1;
-#ifdef LIKWID_PERFMON_NTT
-        #pragma omp parallel
-        {
-            LIKWID_MARKER_START("VECT-NTT");
-        }
-#endif
+        #ifdef LIKWID_PERFMON_NTT
+            #pragma omp parallel
+            {
+                LIKWID_MARKER_START("VECT-NTT");
+            }
+        #endif
         #pragma omp parallel for 
         for (u_int64_t b = 0; b < nBatches; b++)
         {
@@ -231,7 +229,7 @@ void Goldilocks::ntt_block(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int64_
 #ifdef LIKWID_PERFMON_NTT
         #pragma omp parallel
         {
-            LIKWID_MARKER_STOP("VECT-NTT");
+            LIKWID_MARKER_STOP("VECT-NTT");        
             LIKWID_MARKER_START("VECT-SHUFFLE");
         }
 #endif
@@ -248,8 +246,7 @@ void Goldilocks::ntt_block(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int64_
     }
     if (a != _a) // rick: this applyies for al the ntt?
     {
-        printf("baaaaad!\n");
-
+        //printf("baaaaad!\n");
         shuffle_block(a, a2, n, 0, ncols);
     }
     delete[] aux_a;
@@ -291,13 +288,12 @@ void Goldilocks::ntt_block_2(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int6
     {
         
         u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s + 1;
-
-#ifdef LIKWID_PERFMON_NTT
-        #pragma omp parallel
-        {
-            LIKWID_MARKER_START("VECT-NTT");
-        }
-#endif
+        #ifdef LIKWID_PERFMON_NTT
+            #pragma omp parallel
+            {
+                LIKWID_MARKER_START("VECT2-NTT");
+            }
+        #endif
         #pragma omp parallel for 
         for (u_int64_t b = 0; b < nBatches; b++)
         {
@@ -344,13 +340,19 @@ void Goldilocks::ntt_block_2(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int6
                 }
             }
         }
+        #ifdef LIKWID_PERFMON_NTT
+            #pragma omp parallel
+            {
+                LIKWID_MARKER_STOP("VECT2-NTT");
+            }
+        #endif
         tmp = a2;
         a2 = a;
         a = tmp;
     }
     if (a != _a) // rick: this applyies for al the ntt?
     {
-        printf("baaaaad!\n");
+        //printf("baaaaad!\n");
         //shuffle_block_2(a, a2, n, 0, ncols);
         std::memcpy(&a, &a2, n*ncols * sizeof(uint64_t));
     }
