@@ -264,14 +264,14 @@ void Goldilocks::ntt_block_2(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int6
 #ifdef LIKWID_PERFMON_NTT
     #pragma omp parallel
     {
-       LIKWID_MARKER_START("VECT-PERMUTATION");
+       LIKWID_MARKER_START("VECT2-PERMUTATION");
     }
 #endif
     reversePermutation_block_2(a2, a, n, ncols);
 #ifdef LIKWID_PERFMON_NTT
     #pragma omp parallel
     {
-       LIKWID_MARKER_STOP("VECT-PERMUTATION");
+       LIKWID_MARKER_STOP("VECT2-PERMUTATION");
     }
 #endif
     tmp = a2;
