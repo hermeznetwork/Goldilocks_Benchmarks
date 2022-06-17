@@ -12,7 +12,7 @@
 #endif
 
 
-#define SIZE 1<<4 
+#define SIZE 1<<24 
 
 int main(int argc, char **argv ){
 
@@ -26,7 +26,7 @@ int main(int argc, char **argv ){
 
     omp_set_num_threads(nThreads);
 
-    printf("Arguments: columns=%lu, blocks=%lu,reps=%d, nThreads=%lu, colsBlock=%lu, nphase=%lu, SIZE=%lu\n",columns, blocks, reps, nThreads,colsBlock,nphase,SIZE);
+    printf("Arguments: columns=%lu, blocks=%lu,reps=%d, nThreads=%lu, colsBlock=%lu SIZE=%lu\n",columns, blocks, reps, nThreads,colsBlock,SIZE);
 
     #pragma omp parallel
     {
@@ -68,8 +68,8 @@ int main(int argc, char **argv ){
         for (u_int64_t i = 0; i < columns; i++)
         {
             u_int64_t offset = i*length;
-            g1.ntt(pol_ext_1+offset, length, 1);
-            g1.ntt(pol_ext_2+offset, length, nphase);
+            g1.ntt(pol_ext_1+offset, length, nphase);
+            g1.intt(pol_ext_1+offset, length, nphase);
 
             //g1.ntt_(pol_ext_2+offset, length,nphase);
             //g1.intt(pol_ext_2+offset, length,nphase);
@@ -86,8 +86,8 @@ int main(int argc, char **argv ){
     //
     #pragma omp parallel for
     for(uint64_t k=0; k< columns; k++){ 
-	    uint64_t offset = k*length;
-	    for (uint64_t i = 0; i < length; i++)
+	    uint64_t offset = k*length;;
+	    for (uint64_t i = 0; i < 10; i++)
 	    {
             printf("hola i=%lu val1=%lu val2=%lu\n",i,pol_ext_1[offset+i] % GOLDILOCKS_PRIME,pol_ext_2[offset+i]);
             /*if(pol_ext_1[offset+i] != pol_ext_2[offset+i]){

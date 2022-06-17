@@ -45,16 +45,21 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n, u_int64_t nphase)
     a = tmp;
     u_int64_t domainPow = log2(n);
     assert(((u_int64_t)1 << domainPow) == n);
+    if(nphase > s) nphase = s;
+    if(nphase < 0) nphase = 1;
+
     u_int64_t maxBatchPow = s / nphase;
 
     u_int64_t batchSize = 1 << maxBatchPow;
     u_int64_t nBatches = n / batchSize;
-
+    printf("s=%lu maxBatchPow %lu domainPow %lu nphase %lu \n",s, maxBatchPow, domainPow,nphase);
+    printf("batchSize= %lu, nBatches=%lu\n",batchSize,nBatches);
     omp_set_dynamic(0);
     omp_set_num_threads(nThreads);
     for (u_int64_t s = 1; s <= domainPow; s += maxBatchPow)
     {
         u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s + 1;
+        printf("sInc %lu\n",sInc);
         #ifdef LIKWID_PERFMON_NTT
             #pragma omp parallel
             {
@@ -122,6 +127,7 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n, u_int64_t nphase)
                      w = gl_mmul(w, wi);
                  }
                  */
+                
             }
         }
 #ifdef LIKWID_PERFMON_NTT
@@ -131,7 +137,13 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n, u_int64_t nphase)
             LIKWID_MARKER_START("NVECT-SHUFFLE");
         }
 #endif
-        shuffle(a2, a, n, sInc); 
+        printf("abams:\n");                
+        for(int i=0; i<15; ++i) printf(" %lu", a[i] % GOLDILOCKS_PRIME);
+        printf("\n");
+        shuffle(a2, a, n, sInc);
+        printf("despres: \n");                
+        for(int i=0; i<15; ++i) printf(" %lu", a2[i] % GOLDILOCKS_PRIME);
+        printf("\n"); 
 #ifdef LIKWID_PERFMON_NTT
         #pragma omp parallel
         {
@@ -141,14 +153,20 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n, u_int64_t nphase)
         tmp = a2;
         a2 = a;
         a = tmp;
+        if (a != _a){
+            printf("holaaaaaaaaa diferent %lu\n", s);
+        }else{
+            printf("holaaaaaaaaa ecual %lu\n", s);
+        } 
     }
     if (a != _a)
     {
-        // printf("baaaaad!\n");
-        shuffle(a, a2, n, 0);
+        printf("baaaaad!\n");
+        //shuffle(a, a2, n, 0);
     }
     delete[] aux_a;
 }
+
 
 void Goldilocks::ntt_block(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int64_t nphase)
 {
