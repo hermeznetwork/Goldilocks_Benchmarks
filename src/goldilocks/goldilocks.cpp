@@ -52,14 +52,11 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n, u_int64_t nphase)
 
     u_int64_t batchSize = 1 << maxBatchPow;
     u_int64_t nBatches = n / batchSize;
-    printf("s=%lu maxBatchPow %lu domainPow %lu nphase %lu \n",s, maxBatchPow, domainPow,nphase);
-    printf("batchSize= %lu, nBatches=%lu\n",batchSize,nBatches);
     omp_set_dynamic(0);
     omp_set_num_threads(nThreads);
     for (u_int64_t s = 1; s <= domainPow; s += maxBatchPow)
     {
         u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s + 1;
-        printf("sInc %lu\n",sInc);
         #ifdef LIKWID_PERFMON_NTT
             #pragma omp parallel
             {
@@ -137,13 +134,7 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n, u_int64_t nphase)
             LIKWID_MARKER_START("NVECT-SHUFFLE");
         }
 #endif
-        printf("abams:\n");                
-        for(int i=0; i<15; ++i) printf(" %lu", a[i] % GOLDILOCKS_PRIME);
-        printf("\n");
         shuffle(a2, a, n, sInc);
-        printf("despres: \n");                
-        for(int i=0; i<15; ++i) printf(" %lu", a2[i] % GOLDILOCKS_PRIME);
-        printf("\n"); 
 #ifdef LIKWID_PERFMON_NTT
         #pragma omp parallel
         {
@@ -153,20 +144,13 @@ void Goldilocks::ntt(u_int64_t *_a, u_int64_t n, u_int64_t nphase)
         tmp = a2;
         a2 = a;
         a = tmp;
-        if (a != _a){
-            printf("holaaaaaaaaa diferent %lu\n", s);
-        }else{
-            printf("holaaaaaaaaa ecual %lu\n", s);
-        } 
     }
     if (a != _a)
     {
-        printf("baaaaad!\n");
-        //shuffle(a, a2, n, 0);
+        std::memcpy(_a, a, n * sizeof(uint64_t));
     }
     delete[] aux_a;
 }
-
 
 void Goldilocks::ntt_block(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int64_t nphase)
 {
@@ -262,10 +246,9 @@ void Goldilocks::ntt_block(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int64_
         a2 = a;
         a = tmp;
     }
-    if (a != _a) // rick: this applyies for al the ntt?
+    if (a != _a)
     {
-        //printf("baaaaad!\n");
-        shuffle_block(a, a2, n, 0, ncols);
+        std::memcpy(_a, a, n * ncols *sizeof(uint64_t));
     }
     delete[] aux_a;
 }
@@ -368,11 +351,9 @@ void Goldilocks::ntt_block_2(u_int64_t *_a, u_int64_t n, u_int64_t ncols, u_int6
         a2 = a;
         a = tmp;
     }
-    if (a != _a) // rick: this applyies for al the ntt?
+    if (a != _a)
     {
-        //printf("baaaaad!\n");
-        //shuffle_block_2(a, a2, n, 0, ncols);
-        std::memcpy(&a, &a2, n*ncols * sizeof(uint64_t));
+        std::memcpy(_a, a, n * ncols *sizeof(uint64_t));
     }
     delete[] aux_a;
 }
@@ -398,6 +379,38 @@ void Goldilocks::intt(u_int64_t *a, u_int64_t n, u_int64_t nphase)
 void Goldilocks::intt_block(u_int64_t *a, u_int64_t n, u_int64_t ncols, u_int64_t nphase)
 {
     ntt_block(a, n, ncols,nphase);
+    u_int64_t domainPow = log2(n);
+    u_int64_t nDiv2 = n >> 1;
+
+#pragma omp parallel for
+    for (u_int64_t i = 1; i < nDiv2; i++)
+    {
+        u_int64_t tmp;
+        u_int64_t r = n - i;
+
+        u_int64_t offset_r = ncols * r;
+        u_int64_t offset_i = ncols * i;
+
+        for (uint64_t k = 0; k < ncols; k++)
+        {
+            tmp = a[offset_i + k];
+            a[offset_i + k] = gl_mmul(a[offset_r + k], powTwoInv[domainPow]);
+            a[offset_r + k] = gl_mmul(tmp, powTwoInv[domainPow]);
+        }
+    }
+
+    u_int64_t offset_n = ncols * (n >> 1);
+    for (uint64_t k = 0; k < ncols; k++)
+    {
+        a[k] = gl_mmul(a[k], powTwoInv[domainPow]);
+        a[offset_n + k] = gl_mmul(a[offset_n + k], powTwoInv[domainPow]);
+    }
+}
+
+
+void Goldilocks::intt_block_2(u_int64_t *a, u_int64_t n, u_int64_t ncols, u_int64_t nphase)
+{
+    ntt_block_2(a, n, ncols,nphase);
     u_int64_t domainPow = log2(n);
     u_int64_t nDiv2 = n >> 1;
 

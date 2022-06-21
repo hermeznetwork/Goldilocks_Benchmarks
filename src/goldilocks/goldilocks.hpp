@@ -320,6 +320,7 @@ public:
     void shuffle(u_int64_t *dst, u_int64_t *src, uint64_t n, uint64_t s);
     void intt(u_int64_t *a, u_int64_t n, u_int64_t nphase);
     void intt_block(u_int64_t *a, u_int64_t n, u_int64_t ncols,u_int64_t nphase);
+    void intt_block_2(u_int64_t *a, u_int64_t n, u_int64_t ncols,u_int64_t nphase);
 
     void traspose(
         u_int64_t *dst,
