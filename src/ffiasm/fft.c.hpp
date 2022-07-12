@@ -176,10 +176,22 @@ void FFT<Field>::reversePermutation_block(Element *dst, Element *src, u_int64_t 
         u_int64_t r = BR(i, domainSize);
         u_int64_t offset_r = r * ncols_all + offset_cols;
         u_int64_t offset_i = i * ncols;
-        for (u_int64_t k = 0; k < ncols; ++k)
-        {
-            f.copy(dst[offset_i + k], src[offset_r + k]);
-        }
+        std::memcpy(&dst[offset_i], &src[offset_r], ncols * sizeof(Element));
+    }
+}
+template <typename Field>
+template <int N_, int NCOLS_BLOCK_, int NCOLS_>
+void FFT<Field>::reversePermutation_block_divisible(Element *dst, Element *src, u_int64_t offset_cols)
+{
+
+    uint32_t domainSize = log2(N_);
+#pragma omp parallel for schedule(static)
+    for (u_int64_t i = 0; i < N_; i++)
+    {
+        u_int64_t r = BR(i, domainSize);
+        u_int64_t offset_r = r * NCOLS_ + offset_cols;
+        u_int64_t offset_i = i * NCOLS_BLOCK_;
+        std::memcpy(&dst[offset_i], &src[offset_r], NCOLS_BLOCK_ * sizeof(Element));
     }
 }
 
@@ -425,7 +437,6 @@ void FFT<Field>::fft_block_iters(Element *dst, Element *src, u_int64_t n, u_int6
     u_int64_t maxBatchPow = s / nphase;
     u_int64_t batchSize = 1 << maxBatchPow;
     u_int64_t nBatches = n / batchSize;
-
     for (u_int64_t s = 1; s <= domainPow; s += maxBatchPow)
     {
         u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s + 1;
@@ -476,10 +487,7 @@ void FFT<Field>::fft_block_iters(Element *dst, Element *src, u_int64_t n, u_int6
                 {
                     u_int64_t offset_dstY = (x * (nBatches * niters) + (b * niters + l)) * ncols;
                     u_int64_t offset_src = ((b * niters + l) * srcWidth + x) * ncols;
-                    for (u_int64_t k = 0; k < ncols; ++k)
-                    {
-                        f.copy(a2[offset_dstY + k], a[offset_src + k]);
-                    }
+                    std::memcpy(&a2[offset_dstY], &a[offset_src], ncols * sizeof(Element));
                 }
             }
         }
@@ -487,12 +495,111 @@ void FFT<Field>::fft_block_iters(Element *dst, Element *src, u_int64_t n, u_int6
         a2 = a;
         a = tmp;
     }
-    if (a != dst_)
+    if (a != dst_) // rick:  this be done with memcpy
     {
 #pragma omp parallel for schedule(static)
-        for (u_int64_t ie = 0; ie < n * ncols; ++ie)
+        for (u_int64_t ie = 0; ie < n; ++ie)
         {
-            f.copy(dst_[ie], a[ie]);
+            uint64_t offset = ie * ncols;
+            std::memcpy(&dst_[offset], &a[offset], ncols * sizeof(Element));
+        }
+    }
+}
+
+template <typename Field>
+template <int N_, int NCOLS_BLOCK_, int NCOLS_, int NPHASE_>
+void FFT<Field>::fft_block_iters_divisible(Element *dst, Element *src, u_int64_t offset_cols, Element *aux)
+{
+    Element *dst_;
+    if (dst != NULL)
+    {
+        dst_ = dst;
+    }
+    else
+    {
+        dst_ = src;
+    }
+    Element *a = dst_;
+    Element *a2 = aux;
+    Element *tmp;
+
+    reversePermutation_block_divisible<N_, NCOLS_BLOCK_, NCOLS_>(a2, src, offset_cols);
+
+    tmp = a2;
+    a2 = a;
+    a = tmp;
+
+    u_int64_t domainPow = log2(N_);
+    assert(((u_int64_t)1 << domainPow) == N_);
+    u_int64_t maxBatchPow = s / NPHASE_;
+    u_int64_t batchSize = 1 << maxBatchPow;
+    u_int64_t nBatches = N_ / batchSize;
+
+    for (u_int64_t s = 1; s <= domainPow; s += maxBatchPow)
+    {
+        u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s + 1;
+#pragma omp parallel for
+        for (u_int64_t b = 0; b < nBatches; b++)
+        {
+            u_int64_t rs = s - 1;
+            u_int64_t re = domainPow - 1;
+            u_int64_t rb = 1 << rs;
+            u_int64_t rm = (1 << (re - rs)) - 1;
+
+            for (u_int64_t si = 0; si < sInc; si++)
+            {
+                u_int64_t m = 1 << (s + si);
+                u_int64_t mdiv2 = m >> 1;
+                u_int64_t mdiv2i = 1 << si;
+                u_int64_t mi = mdiv2i * 2;
+                for (u_int64_t i = 0; i < (batchSize >> 1); i++)
+                {
+                    u_int64_t ki = b * batchSize + (i / mdiv2i) * mi;
+                    u_int64_t ji = i % mdiv2i;
+
+                    u_int64_t offset1 = (ki + ji + mdiv2i) * NCOLS_BLOCK_;
+                    u_int64_t offset2 = (ki + ji) * NCOLS_BLOCK_;
+
+                    u_int64_t j = (b * batchSize / 2 + i);
+                    j = (j & rm) * rb + (j >> (re - rs));
+                    j = j % mdiv2;
+                    Element w = root(s + si, j);
+
+                    for (u_int64_t k = 0; k < NCOLS_BLOCK_; ++k)
+                    {
+                        Element t;
+                        Element u;
+                        f.mul(t, w, a[offset1 + k]);
+                        f.copy(u, a[offset2 + k]); // rick: aixo ho puc treure
+                        f.add(a[offset2 + k], t, u);
+                        f.sub(a[offset1 + k], u, t);
+                    }
+                }
+            }
+
+            u_int64_t srcWidth = 1 << sInc;
+            u_int64_t niters = batchSize / srcWidth;
+            for (u_int64_t l = 0; l < niters; ++l)
+            {
+                for (u_int64_t x = 0; x < srcWidth; x++)
+                {
+                    u_int64_t offset_dstY = (x * (nBatches * niters) + (b * niters + l)) * NCOLS_BLOCK_;
+                    u_int64_t offset_src = ((b * niters + l) * srcWidth + x) * NCOLS_BLOCK_;
+                    std::memcpy(&a2[offset_dstY], &a[offset_src], NCOLS_BLOCK_ * sizeof(Element));
+                }
+            }
+        }
+        tmp = a2;
+        a2 = a;
+        a = tmp;
+    }
+    if (a != dst_) // rick: could this be done
+    {
+#pragma omp parallel for schedule(static)
+        for (u_int64_t ie = 0; ie < N_; ++ie)
+        {
+            uint64_t offset = ie * NCOLS_BLOCK_;
+            std::memcpy(&dst_[offset], &a[offset], NCOLS_BLOCK_ * sizeof(Element));
         }
     }
 }
@@ -519,7 +626,6 @@ void FFT<Field>::fft_block(Element *dst, Element *src, u_int64_t n, u_int64_t nc
         ncols_alloc += 1;
     }
     Element *dst_ = NULL;
-    // Element *aux = (Element *)malloc(sizeof(Element) * n * ncols_alloc);
     Element *aux = new Element[n * ncols_alloc];
     if (nblock > 1)
     {
@@ -553,7 +659,47 @@ void FFT<Field>::fft_block(Element *dst, Element *src, u_int64_t n, u_int64_t nc
     {
         free(dst_);
     }
-    // free(aux);
+    delete[] aux;
+}
+
+template <typename Field>
+template <int N_, int NCOLS_, int NPHASE_, int NBLOCK_, int NCOLS_BLOCK_>
+void FFT<Field>::fft_block_divisible(Element *dst, Element *src)
+{
+    omp_set_num_threads(nThreads);
+
+    u_int64_t offset_cols = 0;
+
+    Element *dst_ = NULL;
+    Element *aux = new Element[N_ * NCOLS_BLOCK_];
+    if (NBLOCK_ > 1)
+    {
+        dst_ = (Element *)malloc(sizeof(Element) * N_ * NCOLS_BLOCK_);
+    }
+    else
+    {
+        dst_ = dst;
+    }
+    for (u_int64_t ib = 0; ib < NBLOCK_; ++ib)
+    {
+
+        fft_block_iters_divisible<N_, NCOLS_BLOCK_, NCOLS_, NPHASE_>(dst_, src, offset_cols, aux);
+
+        if (NBLOCK_ > 1)
+        {
+#pragma omp parallel for schedule(static)
+            for (u_int64_t ie = 0; ie < N_; ++ie)
+            {
+                u_int64_t offset2 = ie * NCOLS_ + offset_cols;
+                std::memcpy(&dst[offset2], &dst_[ie * NCOLS_BLOCK_], NCOLS_BLOCK_ * sizeof(Element));
+            }
+        }
+        offset_cols += NCOLS_BLOCK_;
+    }
+    if (NCOLS_ > 1)
+    {
+        free(dst_);
+    }
     delete[] aux;
 }
 

@@ -1,7 +1,7 @@
 #ifndef FFT_H
 #define FFT_H
-#define NUM_PHASES 2
-#define NUM_BLOCKS 1
+#define NUM_PHASES_ 2
+#define NUM_BLOCKS_ 1
 
 template <typename Field>
 class FFT
@@ -42,8 +42,14 @@ public:
     void fft(Element *a, u_int64_t n);
     void fft2(Element *a, u_int64_t n);
     void ifft(Element *a, u_int64_t n);
-    void fft_block(Element *dst, Element *src, u_int64_t n, u_int64_t ncols, u_int64_t nphase = NUM_PHASES, u_int64_t nblock = NUM_BLOCKS);
-    void ifft_block(Element *dst, Element *src, u_int64_t n, u_int64_t ncols, u_int64_t nphase = NUM_PHASES, u_int64_t nblock = NUM_BLOCKS);
+    void fft_block(Element *dst, Element *src, u_int64_t n, u_int64_t ncols, u_int64_t nphase = NUM_PHASES_, u_int64_t nblock = NUM_BLOCKS_);
+    void ifft_block(Element *dst, Element *src, u_int64_t n, u_int64_t ncols, u_int64_t nphase = NUM_PHASES_, u_int64_t nblock = NUM_BLOCKS_);
+    template <int N_, int NCOLS_, int NBLOCK_, int NCOLS_BLOCK_, int NPHASE_>
+    void fft_block_divisible(Element *dst, Element *src);
+    template <int N_, int NCOLS_BLOCK_, int NCOLS_, int NPHASE_>
+    void fft_block_iters_divisible(Element *dst, Element *src, u_int64_t offset_cols, Element *aux);
+    template <int N_, int NCOLS_BLOCK_, int NCOLS_>
+    void reversePermutation_block_divisible(Element *dst, Element *src, u_int64_t offset_cols);
 
     u_int32_t log2(u_int64_t n);
     inline Element &root(u_int32_t domainPow, u_int64_t idx) { return roots[idx << (s - domainPow)]; }

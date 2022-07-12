@@ -6,15 +6,18 @@
 #include <cstring>
 #include <assert.h>
 
-#define LENGTH (2 << 27)
+#define LENGTH (1 << 23)
 #define NUM_COLUMNS 32
 #define CHECK 0
 #define NUM_THREADS 128
+#define NUM_BLOCKS 4
+#define NUM_COLS_BLOCK 8
+#define NUM_PHASES 4
 
 static void FFT_BENCHMARK(benchmark::State &state)
 {
     RawFr field;
-    uint64_t length = 2 << state.range(0);
+    uint64_t length = 1 << state.range(0);
     FFT<RawFr> fft(length, NUM_THREADS);
     RawFr::Element *pol, *pol0;
 
@@ -52,7 +55,7 @@ static void FFT_BENCHMARK(benchmark::State &state)
 static void FFT_COLUMNS_BENCHMARK(benchmark::State &state)
 {
     RawFr field;
-    uint64_t length = 2 << state.range(0);
+    uint64_t length = 1 << state.range(0);
     FFT<RawFr> fft(length, NUM_THREADS);
     RawFr::Element *pol, *pol0, *J;
 
@@ -118,7 +121,7 @@ static void FFT_COLUMNS_BENCHMARK(benchmark::State &state)
 static void FFT_BLOCK_BENCHMARK(benchmark::State &state)
 {
     RawFr field;
-    uint64_t length = 2 << state.range(0);
+    uint64_t length = 1 << state.range(0);
     FFT<RawFr> fft(length, NUM_THREADS);
     RawFr::Element *pol, *pol0, *J;
 
@@ -153,10 +156,10 @@ static void FFT_BLOCK_BENCHMARK(benchmark::State &state)
     // Benchmark
     for (auto _ : state)
     {
-        fft.fft_block(pol, pol, length, NUM_COLUMNS, 4, 4);
+        fft.fft_block(pol, pol, length, NUM_COLUMNS, NUM_PHASES, NUM_BLOCKS);
         if (CHECK)
         {
-            fft.ifft_block(pol, pol, length, NUM_COLUMNS, 2, 2);
+            fft.ifft_block(pol, pol, length, NUM_COLUMNS, NUM_PHASES, NUM_BLOCKS);
         }
     }
 
@@ -177,8 +180,71 @@ static void FFT_BLOCK_BENCHMARK(benchmark::State &state)
     free(pol);
 }
 
-// BENCHMARK(FFT_BENCHMARK)->DenseRange(23, 27, 1)->Unit(benchmark::kMillisecond)->Iterations(1);
-// BENCHMARK(FFT_COLUMNS_BENCHMARK)->DenseRange(25, 25, 1)->Unit(benchmark::kMillisecond)->Iterations(1);
-BENCHMARK(FFT_BLOCK_BENCHMARK)->DenseRange(25, 25, 1)->Unit(benchmark::kMillisecond)->Iterations(1);
+static void FFT_BLOCK_TEMPLATE_BENCHMARK(benchmark::State &state)
+{
+    RawFr field;
+    uint64_t length = 1 << state.range(0);
+    FFT<RawFr> fft(length, NUM_THREADS);
+    RawFr::Element *pol, *pol0, *J;
+
+    pol = (RawFr::Element *)malloc(length * (uint64_t)NUM_COLUMNS * sizeof(RawFr::Element));
+    pol0 = (RawFr::Element *)malloc(length * sizeof(RawFr::Element));
+    J = (RawFr::Element *)malloc(NUM_COLUMNS * sizeof(RawFr::Element));
+
+    // Fibonacci
+    field.fromString(pol0[0], "0");
+    field.fromString(pol0[1], "1");
+    for (uint64_t i = 2; i < length; i++)
+    {
+        field.add(pol0[i], pol0[i - 1], pol0[i - 2]);
+    }
+    // Column offsets
+#pragma omp parallel for
+    for (uint64_t j = 0; j < NUM_COLUMNS; ++j)
+    {
+        field.fromUI(J[j], j);
+    }
+
+    // Block initialization fibonacci + column offset
+#pragma omp parallel for collapse(2)
+    for (uint64_t i = 0; i < length; i++)
+    {
+        for (uint j = 0; j < NUM_COLUMNS; j++)
+        {
+            field.add(pol[i * NUM_COLUMNS + j], pol0[i], J[j]);
+        }
+    }
+
+    // Benchmark
+    for (auto _ : state)
+    {
+        fft.fft_block_divisible<LENGTH, NUM_COLUMNS, NUM_PHASES, NUM_BLOCKS, NUM_COLS_BLOCK>(pol, pol);
+        if (CHECK)
+        {
+            fft.ifft_block(pol, pol, length, NUM_COLUMNS, NUM_PHASES, NUM_BLOCKS);
+        }
+    }
+
+    // CHECK RESULT
+    if (CHECK)
+    {
+#pragma omp parallel for collapse(2)
+        for (uint64_t i = 0; i < length; i++)
+        {
+            for (uint j = 0; j < NUM_COLUMNS; j++)
+            {
+                RawFr::Element tmp;
+                field.add(tmp, pol0[i], J[j]);
+                assert(field.eq(pol[i * NUM_COLUMNS + j], tmp));
+            }
+        }
+    }
+    free(pol);
+}
+
+BENCHMARK(FFT_BENCHMARK)->DenseRange(23, 27, 1)->Unit(benchmark::kMillisecond)->Iterations(1);
+BENCHMARK(FFT_COLUMNS_BENCHMARK)->DenseRange(10, 23, 1)->Unit(benchmark::kMillisecond)->Iterations(1);
+BENCHMARK(FFT_BLOCK_BENCHMARK)->DenseRange(10, 23, 1)->Unit(benchmark::kMillisecond)->Iterations(1);
+BENCHMARK(FFT_BLOCK_TEMPLATE_BENCHMARK)->DenseRange(23, 23, 1)->Unit(benchmark::kMillisecond)->Iterations(1);
 
 BENCHMARK_MAIN();

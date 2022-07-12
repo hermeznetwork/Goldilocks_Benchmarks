@@ -10,7 +10,8 @@
 #define Fr_LONG 0x80000000
 #define Fr_LONGMONTGOMERY 0xC0000000
 typedef uint64_t FrRawElement[Fr_N64];
-typedef struct __attribute__((__packed__)) {
+typedef struct __attribute__((__packed__))
+{
     int32_t shortVal;
     uint32_t type;
     FrRawElement longVal;
@@ -65,10 +66,9 @@ extern "C" int Fr_rawIsZero(const FrRawElement pRawB);
 
 extern "C" void Fr_fail();
 
-
 // Pending functions to convert
 
-void Fr_str2element(PFrElement pE, char const*s);
+void Fr_str2element(PFrElement pE, char const *s);
 char *Fr_element2str(PFrElement pE);
 void Fr_idiv(PFrElement r, PFrElement a, PFrElement b);
 void Fr_mod(PFrElement r, PFrElement a, PFrElement b);
@@ -76,14 +76,15 @@ void Fr_inv(PFrElement r, PFrElement a);
 void Fr_div(PFrElement r, PFrElement a, PFrElement b);
 void Fr_pow(PFrElement r, PFrElement a, PFrElement b);
 
-class RawFr {
+class RawFr
+{
 
 public:
     const static int N64 = Fr_N64;
     const static int MaxBits = 254;
 
-
-    struct Element {
+    struct Element
+    {
         FrRawElement v;
     };
 
@@ -93,7 +94,6 @@ private:
     Element fNegOne;
 
 public:
-
     RawFr();
     ~RawFr();
 
@@ -114,7 +114,7 @@ public:
     void inline square(Element &r, const Element &a) { Fr_rawMSquare(r.v, a.v); };
     void inv(Element &r, const Element &a);
     void div(Element &r, const Element &a, const Element &b);
-    void exp(Element &r, const Element &base, uint8_t* scalar, unsigned int scalarSize);
+    void exp(Element &r, const Element &base, uint8_t *scalar, unsigned int scalarSize);
 
     void inline toMontgomery(Element &r, const Element &a) { Fr_rawToMontgomery(r.v, a.v); };
     void inline fromMontgomery(Element &r, const Element &a) { Fr_rawFromMontgomery(r.v, a.v); };
@@ -127,11 +127,6 @@ public:
     void fromUI(Element &r, unsigned long int v);
 
     static RawFr field;
-
 };
 
-
 #endif // __FR_H
-
-
-
