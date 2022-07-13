@@ -444,7 +444,7 @@ void FFT<Field>::fft_block_iters(Element *dst, Element *src, u_int64_t n, u_int6
     u_int64_t nBatches = n / batchSize;
     for (u_int64_t s = 1; s <= domainPow; s += maxBatchPow)
     {
-        if (s == res + 1 && maxBatchPow > 1)
+        if (res > 0 && s == res + 1 && maxBatchPow > 1)
         {
             maxBatchPow -= 1;
         }
@@ -551,7 +551,7 @@ void FFT<Field>::fft_block_iters_divisible(Element *dst, Element *src, u_int64_t
 
     for (u_int64_t s = 1; s <= domainPow; s += maxBatchPow)
     {
-        if (s == res + 1 && maxBatchPow > 1)
+        if (res > 0 && s == res + 1 && maxBatchPow > 1)
         {
             maxBatchPow -= 1;
         }
