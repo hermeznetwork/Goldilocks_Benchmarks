@@ -180,7 +180,7 @@ void FFT<Field>::reversePermutation_block(Element *dst, Element *src, u_int64_t 
     }
 }
 template <typename Field>
-template <int N_, int NCOLS_BLOCK_, int NCOLS_>
+template <uint64_t N_, uint64_t NCOLS_BLOCK_, uint64_t NCOLS_>
 void FFT<Field>::reversePermutation_block_divisible(Element *dst, Element *src, u_int64_t offset_cols)
 {
 
@@ -435,10 +435,19 @@ void FFT<Field>::fft_block_iters(Element *dst, Element *src, u_int64_t n, u_int6
         nphase = domainPow;
     }
     u_int64_t maxBatchPow = s / nphase;
+    u_int64_t res = s % nphase;
+    if (res > 0)
+    {
+        maxBatchPow += 1;
+    }
     u_int64_t batchSize = 1 << maxBatchPow;
     u_int64_t nBatches = n / batchSize;
     for (u_int64_t s = 1; s <= domainPow; s += maxBatchPow)
     {
+        if (s == res + 1 && maxBatchPow > 1)
+        {
+            maxBatchPow -= 1;
+        }
         u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s + 1;
 #pragma omp parallel for
         for (u_int64_t b = 0; b < nBatches; b++)
@@ -507,7 +516,7 @@ void FFT<Field>::fft_block_iters(Element *dst, Element *src, u_int64_t n, u_int6
 }
 
 template <typename Field>
-template <int N_, int NCOLS_BLOCK_, int NCOLS_, int NPHASE_>
+template <uint64_t N_, uint64_t NCOLS_BLOCK_, uint64_t NCOLS_, uint64_t NPHASE_>
 void FFT<Field>::fft_block_iters_divisible(Element *dst, Element *src, u_int64_t offset_cols, Element *aux)
 {
     Element *dst_;
@@ -663,7 +672,7 @@ void FFT<Field>::fft_block(Element *dst, Element *src, u_int64_t n, u_int64_t nc
 }
 
 template <typename Field>
-template <int N_, int NCOLS_, int NPHASE_, int NBLOCK_, int NCOLS_BLOCK_>
+template <uint64_t N_, uint64_t NCOLS_, uint64_t NPHASE_, uint64_t NBLOCK_, uint64_t NCOLS_BLOCK_>
 void FFT<Field>::fft_block_divisible(Element *dst, Element *src)
 {
     omp_set_num_threads(nThreads);
@@ -696,7 +705,7 @@ void FFT<Field>::fft_block_divisible(Element *dst, Element *src)
         }
         offset_cols += NCOLS_BLOCK_;
     }
-    if (NCOLS_ > 1)
+    if (NBLOCK_ > 1)
     {
         free(dst_);
     }
