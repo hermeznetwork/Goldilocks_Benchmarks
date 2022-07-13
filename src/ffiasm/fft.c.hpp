@@ -541,11 +541,20 @@ void FFT<Field>::fft_block_iters_divisible(Element *dst, Element *src, u_int64_t
     u_int64_t domainPow = log2(N_);
     assert(((u_int64_t)1 << domainPow) == N_);
     u_int64_t maxBatchPow = s / NPHASE_;
+    u_int64_t res = s % NPHASE_;
+    if (res > 0)
+    {
+        maxBatchPow += 1;
+    }
     u_int64_t batchSize = 1 << maxBatchPow;
     u_int64_t nBatches = N_ / batchSize;
 
     for (u_int64_t s = 1; s <= domainPow; s += maxBatchPow)
     {
+        if (s == res + 1 && maxBatchPow > 1)
+        {
+            maxBatchPow -= 1;
+        }
         u_int64_t sInc = s + maxBatchPow <= domainPow ? maxBatchPow : domainPow - s + 1;
 #pragma omp parallel for
         for (u_int64_t b = 0; b < nBatches; b++)

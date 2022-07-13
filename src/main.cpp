@@ -9,7 +9,7 @@
 #define CHECK 0
 #define NUM_THREADS 128
 
-#define LENGTH (1 << 23)
+#define LENGTH (1 << 25)
 #define NUM_BLOCKS 1
 #define NUM_COLUMNS 64
 #define NUM_PHASES 3
@@ -252,6 +252,6 @@ static void FFT_BLOCK_TEMPLATE_BENCHMARK(benchmark::State &state)
 BENCHMARK(FFT_BENCHMARK)->DenseRange(23, 27, 1)->Unit(benchmark::kMillisecond)->Iterations(1);
 BENCHMARK(FFT_COLUMNS_BENCHMARK)->DenseRange(23, 26, 1)->Unit(benchmark::kMillisecond)->Iterations(1);
 BENCHMARK(FFT_BLOCK_BENCHMARK)->DenseRange(23, 26, 1)->Unit(benchmark::kMillisecond)->Iterations(1);
-BENCHMARK(FFT_BLOCK_TEMPLATE_BENCHMARK)->DenseRange(23, 23, 1)->Unit(benchmark::kMillisecond)->Iterations(1);
+BENCHMARK(FFT_BLOCK_TEMPLATE_BENCHMARK)->DenseRange(25, 25, 1)->Unit(benchmark::kMillisecond)->Iterations(1);
 
 BENCHMARK_MAIN();
